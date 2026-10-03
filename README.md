@@ -60,6 +60,7 @@ profile 决定启动哪些插件，是配置而非代码：
 |---|---|
 | `core` | 模型 + 工具 + 会话 + 循环，无外壳 |
 | `web` | 上述 + HTTP API 与 WebUI |
+| `api` | 上述 + 仅 HTTP API（无 UI），供前端反代 |
 | `cli` | 上述 + 终端外壳 |
 | `headless` | 无外壳，供嵌入或调用方驱动 |
 | `cli-clock` | cli + 示例 `current_time` 工具 |
@@ -68,6 +69,9 @@ profile 决定启动哪些插件，是配置而非代码：
 ```bash
 ./coren --profile cli-clock run "现在几点？"
 ```
+
+前后端分离：`api` profile（或 `coren serve --no-ui`）只启动 HTTP API，独立前端把
+`/api` 反代到它即可；`web` profile 仍是一体化的 API + 内嵌 WebUI。
 
 ## 配置
 

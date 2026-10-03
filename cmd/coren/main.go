@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"coren/internal/app"
 	"coren/internal/config"
@@ -109,11 +111,16 @@ func run(args []string) error {
 	profileFlag := fs.String("profile", "", "profile to run")
 	addr := fs.String("addr", "", "listen address, e.g. 0.0.0.0:8787")
 	password := fs.String("password", "", "web login password (required when listening off loopback)")
+	noUI := fs.Bool("no-ui", false, "serve the HTTP API only, without the browser UI")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *profileFlag != "" {
 		profileName = *profileFlag
+	}
+	// --no-ui without an explicit profile selects the API-only composition.
+	if *noUI && *profileFlag == "" {
+		profileName = "api"
 	}
 	positional := fs.Args()
 
@@ -145,10 +152,22 @@ func run(args []string) error {
 	if prompt != "" {
 		return runPromptOnce(application, prompt)
 	}
-	if application.Shell == nil {
-		return fmt.Errorf("profile %q has no shell to run", application.Profile.Name)
+
+	// A shell owns the process lifetime when present (CLI REPL, WebUI).
+	if application.Shell != nil {
+		return application.Shell.Run(context.Background())
 	}
-	return application.Shell.Run(context.Background())
+	// No shell: the HTTP server or another service runs in the background, so
+	// block until interrupted.
+	return waitForSignal()
+}
+
+// waitForSignal blocks until the process receives an interrupt or SIGTERM.
+func waitForSignal() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	<-ctx.Done()
+	return nil
 }
 
 // checkExposure refuses to start when a non-loopback address is used without a

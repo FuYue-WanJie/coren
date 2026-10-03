@@ -47,6 +47,7 @@ const (
 	PluginApproval      = "approval"
 	PluginGuard         = "guard"
 	PluginHost          = "plugin-host"
+	PluginHTTPServer    = "http-server"
 )
 
 // base is the shared plugin set most profiles build on: model, tools, sessions,
@@ -77,7 +78,12 @@ var builtin = map[string]Profile{
 	"web": {
 		Name:        "web",
 		Description: "HTTP API and browser WebUI.",
-		Plugins:     withBase(PluginShellWeb),
+		Plugins:     withBase(PluginHTTPServer, PluginShellWeb),
+	},
+	"api": {
+		Name:        "api",
+		Description: "HTTP API only, no browser UI; for reverse-proxied frontends.",
+		Plugins:     withBase(PluginHTTPServer),
 	},
 	"cli": {
 		Name:        "cli",

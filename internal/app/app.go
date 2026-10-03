@@ -34,6 +34,9 @@ type Options struct {
 	Registry *profile.Registry
 	// HostVersion is reported to external plugins during their handshake.
 	HostVersion string
+	// NoServe makes the http-server plugin provide its service without
+	// listening, so another owner can run the process lifetime.
+	NoServe bool
 }
 
 // App owns a booted kernel and the mounts it assembled.

@@ -100,7 +100,9 @@ Coren/
 │   ├── agent/                # agent-loop 默认实现
 │   ├── tool/                 # tools 服务 + 内置工具
 │   ├── session/              # sessions 服务（事件日志）
-│   └── server/               # server 服务（HTTP + SSE + 内嵌 WebUI）
+│   ├── session/              # sessions 服务（事件日志）
+│   ├── plugins/httpserver/   # http-server 插件：HTTP API + 认证（不含 UI）
+│   └── plugins/shellweb/     # 浏览器外壳：只提供内嵌静态资源
 ├── plugins/                  # 一等公民插件（每个可独立启停）
 │   ├── core/                 # 基础：llm+tools+sessions+agent-loop
 │   ├── fs/                   # 文件工具
@@ -108,10 +110,14 @@ Coren/
 │   ├── http/                 # HTTP 工具
 │   ├── webapp/               # 浏览器外壳
 │   └── cli/                  # 终端外壳
-├── profiles/                 # 命名组合（web / headless / cli）
-│   └── web.yaml, cli.yaml, headless.yaml
+├── profiles/                 # 命名组合（web / api / headless / cli）
+│   └── web.yaml, api.yaml, cli.yaml, headless.yaml
 └── docs/architecture.md
 ```
+
+前后端分离：`http-server` 插件独占 HTTP API（`/api/*` + 会话令牌认证），`shell.web`
+只提供静态资源并在存在 http-server 时把资源挂上去。`api` profile（或 `coren serve
+--no-ui`）只跑 API，供独立前端反代；`web` profile 两者都挂，仍是开箱即用的整合界面。
 
 与 DSH 的 **profile / bundle** 概念对应：
 - **profile**：一组有序插件的命名组合（`web`、`cli`、`headless`）。

@@ -1,88 +1,56 @@
 package shellweb
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-	"time"
 
-	"coren/pkg/webauth"
+	"coren/pkg/coren"
+	"coren/pkg/plugins/httpserver"
+	"coren/pkg/session"
+	"coren/pkg/shell"
 )
 
-// guardFor wraps a handler the same way Run does, for isolated tests.
-func guardFor(s *Shell, next http.HandlerFunc) http.Handler {
-	return s.guard(next)
-}
+// These tests assert the shell attaches its static assets to a mounted HTTP
+// server. Authentication coverage lives in the httpserver package.
 
-func TestGuardRejectsMissingToken(t *testing.T) {
-	shell := &Shell{auth: webauth.New("pw", time.Hour)}
-	h := guardFor(shell, func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/chat", nil))
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("code = %d, want 401", rec.Code)
+func TestShellWebAttachesToHTTPServer(t *testing.T) {
+	kernel := coren.NewKernel(context.Background())
+	if err := kernel.Boot(
+		sessionProvider{},
+		httpserver.Plugin{Addr: "127.0.0.1:0", NoServe: true},
+		Plugin{},
+	); err != nil {
+		t.Fatal(err)
 	}
-}
+	defer kernel.Shutdown()
+	if err := kernel.Start(); err != nil {
+		t.Fatal(err)
+	}
 
-func TestGuardAcceptsValidToken(t *testing.T) {
-	store := webauth.New("pw", time.Hour)
-	token, _, _ := store.Login("pw")
-	shell := &Shell{auth: store}
-	h := guardFor(shell, func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	req := httptest.NewRequest(http.MethodPost, "/api/chat", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	srv, ok := coren.UnwrapKey[*httpserver.Server](kernel.Context(), httpserver.Key)
+	if !ok {
+		t.Fatal("httpserver service missing")
+	}
+	if _, ok := coren.UnwrapKey[shell.Shell](kernel.Context(), shell.Key); !ok {
+		t.Fatal("shell service missing")
+	}
+
+	// The static UI should be served at "/".
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
+	srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	if rec.Code != http.StatusOK {
-		t.Fatalf("code = %d, want 200", rec.Code)
+		t.Fatalf("GET / = %d, want 200", rec.Code)
 	}
 }
 
-func TestGuardDisabledWithoutAuth(t *testing.T) {
-	shell := &Shell{auth: nil}
-	h := guardFor(shell, func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/chat", nil))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("code = %d, want 200 when auth disabled", rec.Code)
-	}
-}
+// sessionProvider mounts a minimal session service.
+type sessionProvider struct{}
 
-func TestLoginEndpoint(t *testing.T) {
-	shell := &Shell{auth: webauth.New("pw", time.Hour)}
-
-	// Wrong password -> 401.
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(`{"password":"bad"}`))
-	shell.handleLogin(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("wrong password code = %d, want 401", rec.Code)
-	}
-
-	// Correct password -> token.
-	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/api/login", strings.NewReader(`{"password":"pw"}`))
-	shell.handleLogin(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("correct password code = %d, want 200", rec.Code)
-	}
-	if !strings.Contains(rec.Body.String(), "token") {
-		t.Fatalf("login body = %s", rec.Body.String())
-	}
-}
-
-func TestAuthCheckReportsRequirement(t *testing.T) {
-	shell := &Shell{auth: webauth.New("pw", time.Hour)}
-	rec := httptest.NewRecorder()
-	shell.handleAuthCheck(rec, httptest.NewRequest(http.MethodGet, "/api/authcheck", nil))
-	if !strings.Contains(rec.Body.String(), `"required":true`) {
-		t.Fatalf("authcheck body = %s", rec.Body.String())
-	}
+func (sessionProvider) ID() string       { return "sessions.test" }
+func (sessionProvider) Inject() []string { return nil }
+func (sessionProvider) Apply(ctx coren.Context) error {
+	ctx.Provide(session.Key, session.NewStore())
+	return nil
 }

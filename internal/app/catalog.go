@@ -17,6 +17,7 @@ import (
 	deliverplugin "coren/pkg/plugins/deliver"
 	"coren/pkg/plugins/guard"
 	hostplugin "coren/pkg/plugins/host"
+	"coren/pkg/plugins/httpserver"
 	"coren/pkg/plugins/logging"
 	mcpPlugin "coren/pkg/plugins/mcp"
 	memoryplugin "coren/pkg/plugins/memory"
@@ -132,10 +133,14 @@ var builtins = func() *catalog {
 		}}, nil
 	})
 	c.register(profile.PluginShellWeb, func(bc buildContext) (coren.Plugin, error) {
-		return shellweb.Plugin{
-			AgentConfig: bc.AgentConfig,
+		return shellweb.Plugin{Addr: bc.Config.Addr}, nil
+	})
+	c.register(profile.PluginHTTPServer, func(bc buildContext) (coren.Plugin, error) {
+		return httpserver.Plugin{
 			Addr:        bc.Config.Addr,
+			AgentConfig: bc.AgentConfig,
 			Auth:        webAuth(bc.Config),
+			NoServe:     bc.Options.NoServe,
 		}, nil
 	})
 	c.register(profile.PluginShellCLI, func(bc buildContext) (coren.Plugin, error) {
