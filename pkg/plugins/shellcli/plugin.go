@@ -279,6 +279,8 @@ func (s *Shell) streamTurn(ctx context.Context, sess session.Session, input stri
 			fmt.Fprintf(s.out, "[rejected] %s\n", ev.Rejected.Reason)
 		case ev.TextDelta != "":
 			fmt.Fprint(s.out, ev.TextDelta)
+		case ev.ReasoningDelta != "":
+			fmt.Fprint(s.out, "\x1b[2m"+ev.ReasoningDelta+"\x1b[0m")
 		case ev.ToolCallStart != nil:
 			fmt.Fprintf(s.out, "\n[tool] %s(%s)\n", ev.ToolCallStart.Name, ev.ToolCallStart.Arguments)
 		case ev.ToolCallResult != nil:

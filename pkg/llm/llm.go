@@ -144,6 +144,9 @@ func (l ReasoningLevel) EffortValue() string {
 type Chunk struct {
 	// TextDelta carries incremental assistant text.
 	TextDelta string
+	// ReasoningDelta carries incremental model reasoning/thinking text, when the
+	// provider exposes it. It is display-only and never becomes assistant content.
+	ReasoningDelta string
 	// ToolCall is set when the model finishes a tool call.
 	ToolCall *ToolCall
 	// Done marks the end of the stream; Usage is set when available.

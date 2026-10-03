@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"coren/internal/config"
@@ -9,6 +10,7 @@ import (
 	"coren/pkg/agents"
 	"coren/pkg/coren"
 	"coren/pkg/llm"
+	"coren/pkg/modelinfo"
 	"coren/pkg/session"
 	"coren/pkg/skills"
 	"coren/pkg/subagents"
@@ -169,5 +171,40 @@ func TestUnknownPluginInProfileFails(t *testing.T) {
 	// Directly exercise buildPlugin's default branch.
 	if _, err := buildPlugin("does.not.exist", testConfig(t), agent.Agent{}, Options{Profile: "x"}); err == nil {
 		t.Fatal("expected unknown plugin to fail")
+	}
+}
+
+func TestFormatModelBlockDescribesModel(t *testing.T) {
+	cfg := config.Config{API: "chat", Model: "agnes-2.5-flash"}
+	info := modelinfo.Info{
+		Name:       "Agnes 2.5 Flash",
+		Provider:   "agnes",
+		Reasoning:  true,
+		ToolCall:   true,
+		Modalities: modelinfo.Modalities{Input: []string{"text", "image"}, Output: []string{"text"}},
+		Limit:      modelinfo.Limits{Context: 200000, Output: 8192},
+	}
+	block := formatModelBlock(cfg, info)
+	for _, want := range []string{
+		"<model>",
+		"id: agnes-2.5-flash",
+		"api: chat",
+		"provider: agnes",
+		"reasoning: true",
+		"tool_call: true",
+		"input_modalities: text, image",
+		"context_window: 200000",
+		"max_output_tokens: 8192",
+		"</model>",
+	} {
+		if !strings.Contains(block, want) {
+			t.Errorf("block missing %q:\n%s", want, block)
+		}
+	}
+}
+
+func TestFormatModelBlockEmptyWithoutModel(t *testing.T) {
+	if got := formatModelBlock(config.Config{}, modelinfo.Info{}); got != "" {
+		t.Errorf("expected empty block, got %q", got)
 	}
 }

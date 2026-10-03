@@ -131,6 +131,8 @@ func (s *Shell) handleChat(w http.ResponseWriter, r *http.Request) {
 			send(map[string]any{"type": "rejected", "reason": ev.Rejected.Reason})
 		case ev.TextDelta != "":
 			send(map[string]any{"type": "text", "delta": ev.TextDelta})
+		case ev.ReasoningDelta != "":
+			send(map[string]any{"type": "reasoning", "delta": ev.ReasoningDelta})
 		case ev.ToolCallStart != nil:
 			send(map[string]any{
 				"type":      "tool_call",

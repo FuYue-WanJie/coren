@@ -68,12 +68,12 @@ func New(ctx context.Context, cfg config.Config, opts Options) (*App, error) {
 		return nil, err
 	}
 
-	system, err := assembleSystemPrompt(cfg)
+	info := resolveModelInfo(ctx, cfg)
+
+	system, err := assembleSystemPrompt(cfg, info)
 	if err != nil {
 		return nil, err
 	}
-
-	info := resolveModelInfo(ctx, cfg)
 
 	compactAfter := cfg.CompactAfter
 	if compactAfter == 0 && info.ContextWindow() > 0 {
@@ -150,7 +150,7 @@ func reasoningLevel(value string) llm.ReasoningLevel {
 
 // assembleSystemPrompt builds the system prompt from configuration: the base
 // identity, project instruction files, memory, and any caller customizations.
-func assembleSystemPrompt(cfg config.Config) (string, error) {
+func assembleSystemPrompt(cfg config.Config, info modelinfo.Info) (string, error) {
 	base := cfg.System
 	if base == "" {
 		base = defaultSystem
@@ -187,7 +187,51 @@ func assembleSystemPrompt(cfg config.Config) (string, error) {
 			opts.Append = append(opts.Append, "<project_todos>\n"+strings.TrimSpace(content)+"\n</project_todos>")
 		}
 	}
+	// Tell the model what it is running as, so it can answer identity questions
+	// and reason about its own capabilities (tools, modalities, context, cost).
+	if block := formatModelBlock(cfg, info); block != "" {
+		opts.Append = append(opts.Append, block)
+	}
 	return prompt.Build(opts), nil
+}
+
+// formatModelBlock renders a concise self-description of the active model. It
+// reports only what is known; unknown fields are omitted rather than guessed.
+func formatModelBlock(cfg config.Config, info modelinfo.Info) string {
+	if cfg.Model == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("<model>\n")
+	fmt.Fprintf(&b, "id: %s\n", cfg.Model)
+	if cfg.API != "" {
+		fmt.Fprintf(&b, "api: %s\n", cfg.API)
+	}
+	if info.Name != "" && info.Name != cfg.Model {
+		fmt.Fprintf(&b, "name: %s\n", info.Name)
+	}
+	if info.Provider != "" {
+		fmt.Fprintf(&b, "provider: %s\n", info.Provider)
+	}
+	fmt.Fprintf(&b, "reasoning: %t\n", info.Reasoning)
+	fmt.Fprintf(&b, "tool_call: %t\n", info.ToolCall)
+	if info.Attachment {
+		b.WriteString("attachment: true\n")
+	}
+	if len(info.Modalities.Input) > 0 {
+		fmt.Fprintf(&b, "input_modalities: %s\n", strings.Join(info.Modalities.Input, ", "))
+	}
+	if len(info.Modalities.Output) > 0 {
+		fmt.Fprintf(&b, "output_modalities: %s\n", strings.Join(info.Modalities.Output, ", "))
+	}
+	if cw := info.ContextWindow(); cw > 0 {
+		fmt.Fprintf(&b, "context_window: %d\n", cw)
+	}
+	if info.Limit.Output > 0 {
+		fmt.Fprintf(&b, "max_output_tokens: %d\n", info.Limit.Output)
+	}
+	b.WriteString("</model>")
+	return b.String()
 }
 
 // memoryPath resolves the memory file, honoring the disabled sentinel "-".

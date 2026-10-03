@@ -237,6 +237,7 @@ type chatStreamFrame struct {
 	Choices []struct {
 		Delta struct {
 			Content   string `json:"content"`
+			Reasoning string `json:"reasoning_content"`
 			ToolCalls []struct {
 				Index    int    `json:"index"`
 				ID       string `json:"id"`
@@ -293,6 +294,9 @@ func parseChatSSE(ctx context.Context, body io.Reader, out chan<- llm.Chunk) {
 			continue
 		}
 		delta := frame.Choices[0].Delta
+		if delta.Reasoning != "" {
+			out <- llm.Chunk{ReasoningDelta: delta.Reasoning}
+		}
 		if delta.Content != "" {
 			out <- llm.Chunk{TextDelta: delta.Content}
 		}

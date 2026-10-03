@@ -17,3 +17,6 @@ coren.json
 
 # Session logs
 .coren/
+
+# Model-generated notes
+coren_profile.md

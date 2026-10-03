@@ -45,7 +45,10 @@ type Agent struct {
 
 // Event is emitted as a turn progresses.
 type Event struct {
-	TextDelta      string
+	TextDelta string
+	// ReasoningDelta carries streamed model thinking, when exposed by the
+	// provider. It is display-only and not appended to the assistant message.
+	ReasoningDelta string
 	ToolCallStart  *ToolCallEvent
 	ToolCallResult *ToolResultEvent
 	// Rejected is set when the agent/pre-step waterfall declined the input.
@@ -431,6 +434,8 @@ func (a *Agent) streamOnce(
 		case chunk.TextDelta != "":
 			assistant.Text += chunk.TextDelta
 			events <- Event{TextDelta: chunk.TextDelta}
+		case chunk.ReasoningDelta != "":
+			events <- Event{ReasoningDelta: chunk.ReasoningDelta}
 		case chunk.ToolCall != nil:
 			assistant.ToolCalls = append(assistant.ToolCalls, *chunk.ToolCall)
 		case chunk.Done:

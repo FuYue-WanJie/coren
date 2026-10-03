@@ -242,6 +242,8 @@ func parseResponsesSSE(ctx context.Context, body io.Reader, out chan<- llm.Chunk
 		switch ev.Type {
 		case "response.output_text.delta":
 			out <- llm.Chunk{TextDelta: ev.Delta}
+		case "response.reasoning_summary_text.delta", "response.reasoning_text.delta":
+			out <- llm.Chunk{ReasoningDelta: ev.Delta}
 		case "response.output_item.added":
 			// A function_call item begins; capture its metadata.
 			if ev.ItemID != "" && ev.Name != "" {

@@ -192,3 +192,75 @@ func TestChatRequestOmitsCacheWhenDisabled(t *testing.T) {
 		t.Errorf("cache key should be omitted when disabled: %v", body)
 	}
 }
+
+func TestChatAdapterParsesReasoningDelta(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher := w.(http.Flusher)
+		frames := []string{
+			`{"choices":[{"delta":{"reasoning_content":"let me "}}]}`,
+			`{"choices":[{"delta":{"reasoning_content":"think"}}]}`,
+			`{"choices":[{"delta":{"content":"answer"}}]}`,
+			`[DONE]`,
+		}
+		for _, f := range frames {
+			_, _ = w.Write([]byte("data: " + f + "\n\n"))
+			flusher.Flush()
+		}
+	}))
+	defer srv.Close()
+
+	p := &ChatAdapter{BaseURL: srv.URL}
+	ch, err := p.Stream(context.Background(), llm.Request{Model: "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var reasoning, text string
+	for _, c := range collectChunks(t, ch) {
+		reasoning += c.ReasoningDelta
+		text += c.TextDelta
+	}
+	if reasoning != "let me think" {
+		t.Errorf("reasoning = %q", reasoning)
+	}
+	if text != "answer" {
+		t.Errorf("text = %q", text)
+	}
+}
+
+func TestResponsesAdapterParsesReasoningDelta(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher := w.(http.Flusher)
+		frames := []string{
+			`{"type":"response.reasoning_summary_text.delta","delta":"why "}`,
+			`{"type":"response.reasoning_summary_text.delta","delta":"not"}`,
+			`{"type":"response.output_text.delta","delta":"done"}`,
+			`[DONE]`,
+		}
+		for _, f := range frames {
+			_, _ = w.Write([]byte("data: " + f + "\n\n"))
+			flusher.Flush()
+		}
+	}))
+	defer srv.Close()
+
+	p := &ResponsesAdapter{BaseURL: srv.URL}
+	ch, err := p.Stream(context.Background(), llm.Request{Model: "m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var reasoning, text string
+	for _, c := range collectChunks(t, ch) {
+		reasoning += c.ReasoningDelta
+		text += c.TextDelta
+	}
+	if reasoning != "why not" {
+		t.Errorf("reasoning = %q", reasoning)
+	}
+	if text != "done" {
+		t.Errorf("text = %q", text)
+	}
+}
