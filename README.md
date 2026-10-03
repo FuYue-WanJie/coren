@@ -18,6 +18,7 @@
 - **多模态查看**：`read_file` 读到图片/音频/视频时，模型支持该模态则把内容送入模型，否则返回类型与原因
 - **模型信息**：`coren models --info <id>` 展示能力参数（上下文/工具/推理/模态/价格）；优先级为「配置 > provider API 字段 > models.dev 目录快照」
 - **安全与可靠性**：授权等级（只读/授信/完全）、风险命令拦截、审批确认、文件更改审查、工具超时、模型重试、结构化日志
+- **交付审批**：`deliver` 工具提交计划/文档/审查（可附文件）并暂停，获批后才继续（Plan 模式）
 - **CLI**：`coren run`（单次或交互）、`coren serve`（API + WebUI）
 - **WebUI**：Go `embed` 内嵌的轻量聊天前端，单二进制分发
 
@@ -147,6 +148,7 @@ Coren/
 │   ├── prompt/             # 系统提示词组装
 │   ├── memory/             # 项目记忆存储
 │   ├── todo/               # 项目待办清单存储
+│   ├── delivery/           # 交付物审批契约
 │   ├── session/             # 会话契约 + append-only 事件日志
 │   ├── agents/              # agents 服务 + Loop 契约
 │   ├── shell/               # 外壳契约
@@ -163,13 +165,14 @@ Coren/
 │       ├── guard/           # 授权/风险/审批/文件审查拦截
 │       ├── memory/          # remember/recall 记忆工具
 │       ├── todo/            # todo 待办清单工具
+│       ├── deliver/         # deliver 交付审批工具
 │       ├── shellweb/        # HTTP API + 内嵌 WebUI
 │       ├── shellcli/        # 终端外壳
 │       └── logging/         # 事件追踪
 └── docs/                    # architecture / roadmap / plugin-guide
 ```
 
-插件开发见 `docs/plugin-guide.md`，Skills 见 `docs/skills.md`，子代理见 `docs/subagents.md`，MCP 见 `docs/mcp.md`，提示词与 Token 优化见 `docs/prompting.md`，多模态见 `docs/multimodal.md`，安全与可靠性见 `docs/security.md`。
+插件开发见 `docs/plugin-guide.md`，Skills 见 `docs/skills.md`，子代理见 `docs/subagents.md`，MCP 见 `docs/mcp.md`，提示词与 Token 优化见 `docs/prompting.md`，多模态见 `docs/multimodal.md`，安全与可靠性见 `docs/security.md`，交付审批见 `docs/delivery.md`。
 
 ## 插件模型
 

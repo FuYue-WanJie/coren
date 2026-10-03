@@ -25,6 +25,8 @@ const (
 	// EventCompaction records a summary that replaces prior history in the model
 	// projection, bounding token use on long conversations.
 	EventCompaction EventType = "session/compaction"
+	// EventStatus records a session state transition (e.g. awaiting approval).
+	EventStatus EventType = "session/status"
 )
 
 // Event is one durable fact appended to the session log.
@@ -41,6 +43,8 @@ type Event struct {
 	Text string `json:"text,omitempty"`
 	// Parts carries multimodal content for tool results (images, audio, video).
 	Parts []llm.ContentPart `json:"parts,omitempty"`
+	// Status carries the new state on a session/status event.
+	Status string `json:"status,omitempty"`
 	// ToolCalls carries assistant tool requests (assistant/message).
 	ToolCalls []llm.ToolCall `json:"tool_calls,omitempty"`
 	// CallID links tool/call and tool/result to a specific invocation.

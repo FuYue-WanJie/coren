@@ -2,6 +2,7 @@ package session
 
 import (
 	"sync"
+	"time"
 
 	"coren/pkg/llm"
 )
@@ -19,6 +20,10 @@ type Session interface {
 	Append(events ...Event)
 	// Messages projects the model-visible history from the log.
 	Messages() []llm.Message
+	// Status returns the current state-machine status.
+	Status() Status
+	// SetStatus records a state transition.
+	SetStatus(status Status)
 	// Reset clears the log.
 	Reset()
 }
@@ -121,7 +126,7 @@ func (s *session) Append(events ...Event) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i := range events {
-		e := events[i]
+		e := &events[i]
 		s.seq++
 		e.Seq = s.seq
 		if e.Type == EventTurnStart {
@@ -130,7 +135,10 @@ func (s *session) Append(events ...Event) {
 		if e.Turn == 0 {
 			e.Turn = s.turn
 		}
-		s.events = append(s.events, e)
+		if e.Time.IsZero() {
+			e.Time = time.Now().UTC()
+		}
+		s.events = append(s.events, *e)
 	}
 	if s.persist != nil {
 		_ = s.persist.Append(s.id, events)

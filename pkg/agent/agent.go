@@ -51,8 +51,11 @@ type Event struct {
 	// Rejected is set when the agent/pre-step waterfall declined the input.
 	Rejected *Rejection
 	Done     bool
-	Usage    *llm.Usage
-	Err      error
+	// Paused reports that the turn stopped to await user approval of a
+	// deliverable, rather than completing normally.
+	Paused bool
+	Usage  *llm.Usage
+	Err    error
 }
 
 // ToolCallEvent describes a tool invocation that is starting.
@@ -90,6 +93,7 @@ func (a *Agent) Send(ctx context.Context, sess session.Session, input string) <-
 			return
 		}
 		sess.Append(session.Event{Type: session.EventTurnStart})
+		sess.SetStatus(session.Active)
 		sess.Append(session.Event{Type: session.EventUserMsg, Text: accepted.Input})
 		if a.CompactAfter > 0 {
 			if err := a.compact(ctx, sess); err != nil {
@@ -216,6 +220,16 @@ func (a *Agent) run(ctx context.Context, sess session.Session, events chan<- Eve
 		return err
 	}
 
+	// A rejected or pending deliverable pauses the turn: the scan flag is set by
+	// the delivery plugin's event and checked after each tool call.
+	var deliveryPending bool
+	if a.Context != nil {
+		disposer := a.Context.On(coren.DeliveryPending, func(context.Context, any) {
+			deliveryPending = true
+		})
+		defer disposer()
+	}
+
 	for step := 0; step < a.maxSteps(); step++ {
 		assistant, usage, err := a.streamOnce(ctx, adapter, toolService, sess, events)
 		if err != nil {
@@ -275,6 +289,15 @@ func (a *Agent) run(ctx context.Context, sess session.Session, events chan<- Eve
 			sess.Append(resultEvent)
 		}
 		sess.Append(session.Event{Type: session.EventStepEnd})
+
+		// A pending deliverable pauses the turn: stop now and wait for the user,
+		// rather than continuing to act on an unapproved artifact.
+		if deliveryPending {
+			sess.SetStatus(session.AwaitingApproval)
+			sess.Append(session.Event{Type: session.EventTurnEnd})
+			events <- Event{Done: true, Paused: true}
+			return nil
+		}
 	}
 
 	// Step budget exhausted: give turn-stopping listeners a say before failing.

@@ -60,6 +60,9 @@ type Config struct {
 	Reasoning string `json:"reasoning,omitempty"`
 	// Authz is the authorization level: readonly, trusted (default), full.
 	Authz string `json:"authz,omitempty"`
+	// DeliverAutoApprove lets deliverables pass without a reviewer (non-interactive
+	// shells). When false, a deliverable with no reviewer is rejected.
+	DeliverAutoApprove bool `json:"deliver_auto_approve,omitempty"`
 	// RiskRules adds or overrides risk rules; defaults are used unless disabled.
 	RiskRules []RiskRule `json:"risk_rules,omitempty"`
 	// DisableDefaultRiskRules omits the built-in risk rules.
@@ -134,6 +137,7 @@ type fileConfig struct {
 	CacheRetention          *string                  `json:"cache_retention,omitempty"`
 	Reasoning               *string                  `json:"reasoning,omitempty"`
 	Authz                   *string                  `json:"authz,omitempty"`
+	DeliverAutoApprove      *bool                    `json:"deliver_auto_approve,omitempty"`
 	RiskRules               []RiskRule               `json:"risk_rules,omitempty"`
 	DisableDefaultRiskRules *bool                    `json:"disable_default_risk_rules,omitempty"`
 	ToolTimeout             *int                     `json:"tool_timeout,omitempty"`
@@ -274,6 +278,9 @@ func applyFile(cfg *Config, path string) {
 	}
 	if fc.Authz != nil {
 		cfg.Authz = *fc.Authz
+	}
+	if fc.DeliverAutoApprove != nil {
+		cfg.DeliverAutoApprove = *fc.DeliverAutoApprove
 	}
 	if len(fc.RiskRules) > 0 {
 		cfg.RiskRules = fc.RiskRules

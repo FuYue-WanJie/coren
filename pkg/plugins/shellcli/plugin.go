@@ -15,6 +15,7 @@ import (
 	"coren/pkg/approval"
 	"coren/pkg/ask"
 	"coren/pkg/coren"
+	"coren/pkg/delivery"
 	"coren/pkg/session"
 	"coren/pkg/shell"
 )
@@ -64,7 +65,16 @@ func (p Plugin) Apply(ctx coren.Context) error {
 	ctx.Provide(ask.Key, shellInstance)
 	// And as the approval requester so guarded actions can ask the user.
 	ctx.Provide(approval.RequesterKey, approvalRequester{shell: shellInstance})
+	// And as the deliverable reviewer so `deliver` can pause for approval.
+	ctx.Provide(delivery.ReviewerKey, deliveryReviewer{shell: shellInstance})
 	return nil
+}
+
+// deliveryReviewer adapts the shell to delivery.Reviewer.
+type deliveryReviewer struct{ shell *Shell }
+
+func (r deliveryReviewer) Review(ctx context.Context, d delivery.Deliverable) (delivery.Decision, error) {
+	return r.shell.Review(ctx, d)
 }
 
 // approvalRequester adapts the shell to approval.Requester.
@@ -112,6 +122,85 @@ func (s *Shell) Run(ctx context.Context) error {
 // Ask prompts the user on the terminal and returns their answer (ask.Asker).
 func (s *Shell) Ask(ctx context.Context, question string) (string, error) {
 	return s.readAnswer(ctx, question)
+}
+
+// Review presents a deliverable and blocks for approve/revise/reject
+// (delivery.Reviewer). Attachments are listed and can be opened by number.
+func (s *Shell) Review(ctx context.Context, d delivery.Deliverable) (delivery.Decision, error) {
+	s.renderDeliverable(d)
+
+	if len(d.Attachments) > 0 {
+		if err := s.reviewAttachments(ctx, d); err != nil {
+			return delivery.Decision{By: "user", Feedback: err.Error()}, err
+		}
+	}
+
+	for {
+		answer, err := s.readAnswer(ctx, "批准？[y=approve / r=revise / n=reject]")
+		if err != nil {
+			return delivery.Decision{Verdict: delivery.Rejected, By: "user", Feedback: err.Error()}, err
+		}
+		switch strings.ToLower(strings.TrimSpace(answer)) {
+		case "y", "yes", "approve", "ok", "是", "好":
+			return delivery.Decision{Verdict: delivery.Approved, By: "user"}, nil
+		case "r", "revise", "修改":
+			feedback, _ := s.readAnswer(ctx, "修改意见")
+			return delivery.Decision{Verdict: delivery.Revise, By: "user", Feedback: feedback}, nil
+		case "n", "no", "reject", "拒绝":
+			feedback, _ := s.readAnswer(ctx, "拒绝原因（可空）")
+			return delivery.Decision{Verdict: delivery.Rejected, By: "user", Feedback: feedback}, nil
+		default:
+			fmt.Fprintln(s.out, "请输入 y / r / n")
+		}
+	}
+}
+
+// renderDeliverable prints the deliverable header and body.
+func (s *Shell) renderDeliverable(d delivery.Deliverable) {
+	fmt.Fprintf(s.out, "\n========== 交付物 [%s] %s ==========\n", d.Kind, d.Title)
+	fmt.Fprintln(s.out, d.Content)
+	if len(d.Attachments) > 0 {
+		fmt.Fprintln(s.out, "\n---- 附件 ----")
+		for i, a := range d.Attachments {
+			status := fmt.Sprintf("%d bytes", a.Size)
+			if a.Error != "" {
+				status = "读取失败: " + a.Error
+			} else if a.Text == "" {
+				status += " (太大，需按路径查看)"
+			}
+			fmt.Fprintf(s.out, "  [%d] %s (%s)\n", i+1, a.Path, status)
+		}
+	}
+	fmt.Fprintln(s.out, "======================================")
+}
+
+// reviewAttachments lets the user open an attachment by number before deciding.
+func (s *Shell) reviewAttachments(ctx context.Context, d delivery.Deliverable) error {
+	for {
+		answer, err := s.readAnswer(ctx, "输入附件编号查看内容，或直接回车进入审批")
+		if err != nil {
+			return err
+		}
+		answer = strings.TrimSpace(answer)
+		if answer == "" {
+			return nil
+		}
+		var n int
+		if _, err := fmt.Sscanf(answer, "%d", &n); err != nil || n < 1 || n > len(d.Attachments) {
+			fmt.Fprintln(s.out, "无效编号")
+			continue
+		}
+		a := d.Attachments[n-1]
+		if a.Error != "" {
+			fmt.Fprintf(s.out, "无法读取 %s: %s\n", a.Path, a.Error)
+			continue
+		}
+		if a.Text == "" {
+			fmt.Fprintf(s.out, "%s 内联内容不可用，请按路径打开。\n", a.Path)
+			continue
+		}
+		fmt.Fprintf(s.out, "\n----- %s -----\n%s\n---------------\n", a.Path, a.Text)
+	}
 }
 
 // RequestApproval asks the user to approve a guarded action (approval.Requester).

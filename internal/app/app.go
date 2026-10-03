@@ -22,6 +22,7 @@ import (
 	"coren/pkg/plugins/ask"
 	"coren/pkg/plugins/builtintools"
 	"coren/pkg/plugins/coreagent"
+	deliverplugin "coren/pkg/plugins/deliver"
 	"coren/pkg/plugins/guard"
 	"coren/pkg/plugins/logging"
 	mcpPlugin "coren/pkg/plugins/mcp"
@@ -315,6 +316,10 @@ func buildPlugin(id string, cfg config.Config, agentConfig agent.Agent, opts Opt
 		return memoryplugin.Plugin{Config: memoryplugin.Config{Path: memoryPath(cfg)}}, nil
 	case profile.PluginTodo:
 		return todoplugin.Plugin{Config: todoplugin.Config{Path: todoPath(cfg)}}, nil
+	case profile.PluginDelivery:
+		return deliverplugin.ProviderPlugin{AutoApprove: cfg.DeliverAutoApprove}, nil
+	case profile.PluginDeliver:
+		return deliverplugin.Plugin{Config: deliverplugin.Config{WorkDir: cfg.WorkDir}}, nil
 	case profile.PluginApproval:
 		level, _ := authz.Parse(cfg.Authz)
 		return guard.ProviderPlugin{Authz: level}, nil

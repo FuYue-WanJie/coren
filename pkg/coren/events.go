@@ -23,6 +23,11 @@ const (
 	// Model usage, emitted per turn with token counts. Observational.
 	EventModelUsage = "model/usage"
 
+	// DeliveryPending is emitted when a deliverable is submitted but not yet
+	// approved. The agent stops the turn on this event so work pauses until the
+	// user decides.
+	DeliveryPending = "delivery/pending"
+
 	// Plugin lifecycle (observational).
 	EventPluginLoaded   = "plugin/loaded"
 	EventPluginUnloaded = "plugin/unloaded"

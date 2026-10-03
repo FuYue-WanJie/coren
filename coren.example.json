@@ -53,5 +53,6 @@
       "reason": "infrastructure changes need review"
     }
   ],
-  "todo_path": "TODO.md"
+  "todo_path": "TODO.md",
+  "deliver_auto_approve": false
 }

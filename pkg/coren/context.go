@@ -81,7 +81,7 @@ func (c *contextImpl) declareBuiltinEvents() {
 	for _, name := range []string{
 		EventAgentPreStep, EventAgentRequest, EventAgentTurnStopping,
 		EventToolsPreExecute, EventToolsPostExecute, EventLLMStream,
-		EventModelUsage,
+		EventModelUsage, DeliveryPending,
 		EventPluginLoaded, EventPluginUnloaded,
 	} {
 		c.bus.declare(name)

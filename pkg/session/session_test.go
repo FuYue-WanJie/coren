@@ -177,3 +177,50 @@ func TestCompactionSupersedesEarlierHistory(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusStateMachine(t *testing.T) {
+	s := NewStore().Get("s")
+	if s.Status() != Active {
+		t.Errorf("initial status = %q, want active", s.Status())
+	}
+	s.SetStatus(AwaitingApproval)
+	if s.Status() != AwaitingApproval {
+		t.Errorf("status = %q, want awaiting_approval", s.Status())
+	}
+	s.SetStatus(Active)
+	if s.Status() != Active {
+		t.Errorf("status = %q, want active", s.Status())
+	}
+}
+
+func TestStatusSurvivesPersistence(t *testing.T) {
+	dir := t.TempDir()
+	p, _ := NewJSONLPersister(dir)
+	store := NewStore(WithPersister(p))
+	store.Get("x").SetStatus(AwaitingApproval)
+
+	resumed := NewStore(WithPersister(p)).Get("x")
+	if resumed.Status() != AwaitingApproval {
+		t.Errorf("resumed status = %q, want awaiting_approval", resumed.Status())
+	}
+}
+
+func TestPersistedEventsCarrySeqAndTime(t *testing.T) {
+	dir := t.TempDir()
+	p, _ := NewJSONLPersister(dir)
+	store := NewStore(WithPersister(p))
+	s := store.Get("seq")
+	s.Append(Event{Type: EventUserMsg, Text: "a"})
+	s.Append(Event{Type: EventAssistant, Text: "b"})
+
+	reloaded, _ := p.Load("seq")
+	if len(reloaded) != 2 {
+		t.Fatalf("reloaded = %d events", len(reloaded))
+	}
+	if reloaded[0].Seq != 1 || reloaded[1].Seq != 2 {
+		t.Errorf("persisted seqs = %d,%d; want 1,2", reloaded[0].Seq, reloaded[1].Seq)
+	}
+	if reloaded[0].Time.IsZero() {
+		t.Error("persisted event time should be set")
+	}
+}
