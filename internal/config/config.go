@@ -26,6 +26,8 @@ type Config struct {
 	AddPlugins []string `json:"add_plugins,omitempty"`
 	// RemovePlugins drops plugin ids from the profile's list.
 	RemovePlugins []string `json:"remove_plugins,omitempty"`
+	// ExternalPlugins lists out-of-process plugins the host launches.
+	ExternalPlugins []ExternalPlugin `json:"external_plugins,omitempty"`
 	// API selects the provider flavour: "chat" or "responses".
 	API string `json:"api"`
 	// BaseURL is the OpenAI-compatible endpoint root, e.g. https://api.openai.com/v1.
@@ -123,23 +125,24 @@ type ContextFiles struct {
 // fileConfig mirrors Config but every field is a pointer so that an unset key in
 // a file does not overwrite a lower layer. It also accepts a template file.
 type fileConfig struct {
-	API           *string     `json:"api"`
-	BaseURL       *string     `json:"base_url"`
-	APIKey        *string     `json:"api_key"`
-	Model         *string     `json:"model"`
-	Profile       *string     `json:"profile,omitempty"`
-	Plugins       []string    `json:"plugins,omitempty"`
-	AddPlugins    []string    `json:"add_plugins,omitempty"`
-	RemovePlugins []string    `json:"remove_plugins,omitempty"`
-	System        *string     `json:"system"`
-	WorkDir       *string     `json:"work_dir"`
-	Addr          *string     `json:"addr"`
-	SessionDir    *string     `json:"session_dir"`
-	SkillsDir     *string     `json:"skills_dir"`
-	Temperature   *float64    `json:"temperature"`
-	MaxTokens     *int        `json:"max_tokens"`
-	MaxSteps      *int        `json:"max_steps"`
-	MCP           []MCPServer `json:"mcp,omitempty"`
+	API             *string          `json:"api"`
+	BaseURL         *string          `json:"base_url"`
+	APIKey          *string          `json:"api_key"`
+	Model           *string          `json:"model"`
+	Profile         *string          `json:"profile,omitempty"`
+	Plugins         []string         `json:"plugins,omitempty"`
+	AddPlugins      []string         `json:"add_plugins,omitempty"`
+	RemovePlugins   []string         `json:"remove_plugins,omitempty"`
+	ExternalPlugins []ExternalPlugin `json:"external_plugins,omitempty"`
+	System          *string          `json:"system"`
+	WorkDir         *string          `json:"work_dir"`
+	Addr            *string          `json:"addr"`
+	SessionDir      *string          `json:"session_dir"`
+	SkillsDir       *string          `json:"skills_dir"`
+	Temperature     *float64         `json:"temperature"`
+	MaxTokens       *int             `json:"max_tokens"`
+	MaxSteps        *int             `json:"max_steps"`
+	MCP             []MCPServer      `json:"mcp,omitempty"`
 
 	ContextFiles            *ContextFiles            `json:"context_files,omitempty"`
 	MemoryPath              *string                  `json:"memory_path,omitempty"`
@@ -169,6 +172,16 @@ type MCPServer struct {
 	Transport string            `json:"transport,omitempty"`
 	Headers   map[string]string `json:"headers,omitempty"`
 	Enabled   *bool             `json:"enabled,omitempty"`
+}
+
+// ExternalPlugin describes one out-of-process plugin for the plugin host.
+type ExternalPlugin struct {
+	Name     string   `json:"name"`
+	Command  string   `json:"command"`
+	Args     []string `json:"args,omitempty"`
+	Env      []string `json:"env,omitempty"`
+	Dir      string   `json:"dir,omitempty"`
+	Disabled bool     `json:"disabled,omitempty"`
 }
 
 // UserConfigPath returns the platform user config file path.
@@ -258,6 +271,9 @@ func applyFile(cfg *Config, path string) {
 	}
 	if len(fc.RemovePlugins) > 0 {
 		cfg.RemovePlugins = append(cfg.RemovePlugins, fc.RemovePlugins...)
+	}
+	if len(fc.ExternalPlugins) > 0 {
+		cfg.ExternalPlugins = fc.ExternalPlugins
 	}
 	if fc.System != nil {
 		cfg.System = *fc.System

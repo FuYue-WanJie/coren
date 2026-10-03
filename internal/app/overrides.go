@@ -5,6 +5,7 @@ import (
 
 	"coren/internal/config"
 	"coren/internal/profile"
+	hostplugin "coren/pkg/plugins/host"
 )
 
 // applyPluginOverrides rewrites a profile's plugin list from configuration.
@@ -65,4 +66,20 @@ func validatePlugins(plugins []string, opts Options) error {
 		return fmt.Errorf("app: unknown plugin %q", id)
 	}
 	return nil
+}
+
+// externalPlugins converts configuration entries to host plugin configs.
+func externalPlugins(in []config.ExternalPlugin) []hostplugin.PluginConfig {
+	out := make([]hostplugin.PluginConfig, 0, len(in))
+	for _, p := range in {
+		out = append(out, hostplugin.PluginConfig{
+			Name:     p.Name,
+			Command:  p.Command,
+			Args:     p.Args,
+			Env:      p.Env,
+			Dir:      p.Dir,
+			Disabled: p.Disabled,
+		})
+	}
+	return out
 }

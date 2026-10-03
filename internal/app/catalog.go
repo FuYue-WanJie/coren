@@ -16,6 +16,7 @@ import (
 	"coren/pkg/plugins/coreagent"
 	deliverplugin "coren/pkg/plugins/deliver"
 	"coren/pkg/plugins/guard"
+	hostplugin "coren/pkg/plugins/host"
 	"coren/pkg/plugins/logging"
 	mcpPlugin "coren/pkg/plugins/mcp"
 	memoryplugin "coren/pkg/plugins/memory"
@@ -185,6 +186,13 @@ var builtins = func() *catalog {
 	})
 	c.register(profile.PluginGuard, func(bc buildContext) (coren.Plugin, error) {
 		return guard.Plugin{Config: guardConfig(bc.Config)}, nil
+	})
+	c.register(profile.PluginHost, func(bc buildContext) (coren.Plugin, error) {
+		return hostplugin.Plugin{
+			Plugins:     externalPlugins(bc.Config.ExternalPlugins),
+			WorkDir:     bc.Config.WorkDir,
+			HostVersion: bc.Options.HostVersion,
+		}, nil
 	})
 	return c
 }()

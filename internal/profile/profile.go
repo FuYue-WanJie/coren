@@ -46,6 +46,7 @@ const (
 	PluginDeliver       = "deliver"
 	PluginApproval      = "approval"
 	PluginGuard         = "guard"
+	PluginHost          = "plugin-host"
 )
 
 // base is the shared plugin set most profiles build on: model, tools, sessions,

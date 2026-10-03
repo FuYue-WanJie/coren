@@ -19,6 +19,8 @@
 - **模型信息**：`coren models --info <id>` 展示能力参数（上下文/工具/推理/模态/价格）；优先级为「配置 > provider API 字段 > models.dev 目录快照」
 - **安全与可靠性**：授权等级（只读/授信/完全）、风险命令拦截、审批确认、文件更改审查、工具超时、模型重试、结构化日志
 - **交付审批**：`deliver` 工具提交计划/文档/审查（可附文件）并暂停，获批后才继续（Plan 模式）
+- **配置驱动装配**：`profile` / `plugins` / `add_plugins` / `remove_plugins` 让启用的插件集成为配置，不改代码即可增删
+- **外部进程插件**：`plugin-host` 启动任意语言的子进程插件（NDJSON + JSON-RPC），把其工具接入本地，免重编
 - **CLI**：`coren run`（单次或交互）、`coren serve`（API + WebUI）
 - **WebUI**：Go `embed` 内嵌的轻量聊天前端，单二进制分发
 
@@ -172,7 +174,7 @@ Coren/
 └── docs/                    # architecture / roadmap / plugin-guide
 ```
 
-插件开发见 `docs/plugin-guide.md`，Skills 见 `docs/skills.md`，子代理见 `docs/subagents.md`，MCP 见 `docs/mcp.md`，提示词与 Token 优化见 `docs/prompting.md`，多模态见 `docs/multimodal.md`，安全与可靠性见 `docs/security.md`，交付审批见 `docs/delivery.md`。
+插件开发见 `docs/plugin-guide.md`，外部进程插件见 `docs/external-plugins.md`，Skills 见 `docs/skills.md`，子代理见 `docs/subagents.md`，MCP 见 `docs/mcp.md`，提示词与 Token 优化见 `docs/prompting.md`，多模态见 `docs/multimodal.md`，安全与可靠性见 `docs/security.md`，交付审批见 `docs/delivery.md`。
 
 开发进度与交接见 `当前工作区 的 /.monkeycode/docs/coren-handoff.md`。
 

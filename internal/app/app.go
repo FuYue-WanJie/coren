@@ -32,6 +32,8 @@ type Options struct {
 	Prompt string
 	// Registry, when set, resolves plugin ids the framework does not ship.
 	Registry *profile.Registry
+	// HostVersion is reported to external plugins during their handshake.
+	HostVersion string
 }
 
 // App owns a booted kernel and the mounts it assembled.
