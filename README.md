@@ -174,6 +174,8 @@ Coren/
 
 插件开发见 `docs/plugin-guide.md`，Skills 见 `docs/skills.md`，子代理见 `docs/subagents.md`，MCP 见 `docs/mcp.md`，提示词与 Token 优化见 `docs/prompting.md`，多模态见 `docs/multimodal.md`，安全与可靠性见 `docs/security.md`，交付审批见 `docs/delivery.md`。
 
+开发进度与交接见 `当前工作区 的 /.monkeycode/docs/coren-handoff.md`。
+
 ## 插件模型
 
 一切皆插件：内核没有特权核心，能力通过服务注册到 `coren.Context`，
