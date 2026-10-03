@@ -1,0 +1,56 @@
+{
+  "api": "chat",
+  "base_url": "https://api.openai.com/v1",
+  "api_key": "",
+  "model": "gpt-4o-mini",
+  "system": "You are Coren, a concise and capable assistant.",
+  "work_dir": "",
+  "addr": "127.0.0.1:8787",
+  "session_dir": ".coren/sessions",
+  "skills_dir": ".coren/skills",
+  "temperature": 0.7,
+  "max_tokens": 2048,
+  "max_steps": 12,
+  "guidelines": [
+    "All Go code in this project must pass gofmt."
+  ],
+  "append_system_prompt": [
+    "Ask before running destructive commands."
+  ],
+  "context_files": {
+    "disabled": false,
+    "fixed_paths": [
+      ".coren/rules.md"
+    ]
+  },
+  "memory_path": "MEMORY.md",
+  "cache_retention": "short",
+  "compact_after": 0,
+  "auto_model_info": false,
+  "mcp": [
+    {
+      "name": "example",
+      "url": "https://example.com/mcp",
+      "transport": "streamable",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN"
+      },
+      "enabled": false
+    }
+  ],
+  "reasoning": "auto",
+  "authz": "trusted",
+  "tool_timeout": 120,
+  "max_retries": 3,
+  "risk_rules": [
+    {
+      "name": "deploy-guard",
+      "severity": "confirm",
+      "tools": [
+        "run_shell"
+      ],
+      "pattern": "\\b(kubectl|terraform)\\b",
+      "reason": "infrastructure changes need review"
+    }
+  ]
+}

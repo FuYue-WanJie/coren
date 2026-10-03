@@ -1,0 +1,19 @@
+# Build output
+/coren
+*.exe
+*.test
+*.out
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Local env
+.env
+
+# Local configuration (may hold an api_key)
+coren.json
+
+# Session logs
+.coren/

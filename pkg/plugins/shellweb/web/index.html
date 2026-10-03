@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Coren</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <header>
+    <h1>Coren</h1>
+    <span id="status">就绪</span>
+  </header>
+
+  <main id="messages" aria-live="polite"></main>
+
+  <form id="composer">
+    <textarea id="input" rows="1" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
+    <button type="submit" id="send">发送</button>
+  </form>
+
+  <script src="app.js"></script>
+</body>
+</html>

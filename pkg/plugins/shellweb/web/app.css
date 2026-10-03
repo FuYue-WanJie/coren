@@ -1,0 +1,94 @@
+:root {
+  color-scheme: light dark;
+  --bg: #0f1115;
+  --panel: #171a21;
+  --fg: #e6e8ec;
+  --muted: #8b93a1;
+  --accent: #4f8cff;
+  --tool: #f0b429;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #232733;
+}
+
+header h1 { font-size: 18px; margin: 0; }
+#status { color: var(--muted); font-size: 13px; }
+
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.msg {
+  max-width: 760px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.msg.user { align-self: flex-end; background: var(--accent); color: #fff; }
+.msg.assistant { align-self: flex-start; background: var(--panel); }
+.msg.tool {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px dashed #3a4152;
+  color: var(--tool);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  max-width: 760px;
+}
+.msg.error { align-self: flex-start; background: #3a1d1d; color: #ff9a9a; }
+
+#composer {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid #232733;
+}
+
+#input {
+  flex: 1;
+  resize: none;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #2c3140;
+  background: var(--panel);
+  color: var(--fg);
+  font: inherit;
+  max-height: 160px;
+}
+
+#send {
+  padding: 0 20px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+#send:disabled { opacity: 0.5; cursor: default; }
