@@ -107,6 +107,8 @@ func (s *Shell) Run(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", s.handleHealth)
 	mux.HandleFunc("/api/chat", s.handleChat)
+	mux.HandleFunc("/api/sessions", s.handleSessions)
+	mux.HandleFunc("/api/sessions/", s.handleSessions)
 	mux.HandleFunc("/api/webui/status", s.handleWebUIStatus)
 	mux.HandleFunc("/api/webui/update", s.handleWebUIUpdate)
 	mux.Handle("/", noCache(http.FileServer(s.static)))

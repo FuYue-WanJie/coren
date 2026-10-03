@@ -27,6 +27,8 @@ const (
 	EventCompaction EventType = "session/compaction"
 	// EventStatus records a session state transition (e.g. awaiting approval).
 	EventStatus EventType = "session/status"
+	// EventMeta records user-editable session metadata (currently the title).
+	EventMeta EventType = "session/meta"
 )
 
 // Event is one durable fact appended to the session log.
@@ -45,6 +47,8 @@ type Event struct {
 	Parts []llm.ContentPart `json:"parts,omitempty"`
 	// Status carries the new state on a session/status event.
 	Status string `json:"status,omitempty"`
+	// Title carries a session title on a session/meta event.
+	Title string `json:"title,omitempty"`
 	// ToolCalls carries assistant tool requests (assistant/message).
 	ToolCalls []llm.ToolCall `json:"tool_calls,omitempty"`
 	// CallID links tool/call and tool/result to a specific invocation.

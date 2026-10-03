@@ -203,3 +203,28 @@ WebUI 资源通过 `embed` 打进二进制，同时可以在首次启动时提�
 - 接口：`GET /api/webui/status`、`POST /api/webui/update`
 
 这样单二进制分发与"改 UI 不重编"两种用法兼得，且用户改动不会被静默覆盖。
+
+## 10. 会话管理
+
+会话日志每个会话一个 JSONL 文件（`session_dir/<id>.jsonl`），是会话的唯一真相来源。
+面向用户的会话管理建立在它之上：
+
+- **发现**：`Service.IDs()` 同时扫描内存与磁盘，重启后仍能看到历史会话
+- **摘要**：`Summaries()` 给出 `{id, title, turns, message_count, updated_at}`，按更新时间倒序
+- **标题**：取最后一个 `session/meta` 事件的标题；未设置时从首条用户消息截取
+- **重命名**：追加一个 `session/meta` 事件，与日志同生共死
+- **删除（软删）**：把 `.jsonl` 改名为 `.jsonl.trash-<时间戳>`，列表不再出现；保留 24 小时
+  （`memsession.TrashTTL`），下次启动 `PurgeTrash` 清理超期项
+
+HTTP 接口：
+
+| 方法 | 路径 | 作用 |
+|---|---|---|
+| GET | `/api/sessions` | 会话列表（摘要） |
+| POST | `/api/sessions` | 新建会话，返回 id |
+| GET | `/api/sessions/{id}` | 该会话的可渲染历史 |
+| PATCH | `/api/sessions/{id}` | 重命名 |
+| DELETE | `/api/sessions/{id}` | 软删除 |
+
+新会话采用延迟创建：前端在用户发出第一条消息前调用 `POST /api/sessions` 取得 id，
+再携带该 id 调用 `/api/chat`。

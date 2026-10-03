@@ -6,10 +6,14 @@ package memsession
 
 import (
 	"fmt"
+	"time"
 
 	"coren/pkg/coren"
 	"coren/pkg/session"
 )
+
+// TrashTTL is how long a soft-deleted session stays recoverable.
+const TrashTTL = 24 * time.Hour
 
 // Plugin provides the sessions service.
 type Plugin struct {
@@ -29,6 +33,8 @@ func (p Plugin) Apply(ctx coren.Context) error {
 	if err != nil {
 		return fmt.Errorf("memsession: %w", err)
 	}
+	// Drop trashed logs past the retention window on startup.
+	_, _ = persister.PurgeTrash(TrashTTL)
 	ctx.Provide(session.Key, session.NewStore(session.WithPersister(persister)))
 	return nil
 }
