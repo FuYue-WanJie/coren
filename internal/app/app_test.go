@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"coren/internal/config"
+	"coren/internal/profile"
 	"coren/pkg/agent"
 	"coren/pkg/agents"
 	"coren/pkg/coren"
@@ -169,7 +170,8 @@ func TestHeadlessProfileHasNoShell(t *testing.T) {
 
 func TestUnknownPluginInProfileFails(t *testing.T) {
 	// Directly exercise buildPlugin's default branch.
-	if _, err := buildPlugin("does.not.exist", testConfig(t), agent.Agent{}, Options{Profile: "x"}); err == nil {
+	bc := buildContext{Config: testConfig(t), AgentConfig: agent.Agent{}, Options: Options{Profile: "x"}}
+	if _, err := buildPlugin("does.not.exist", bc); err == nil {
 		t.Fatal("expected unknown plugin to fail")
 	}
 }
@@ -206,5 +208,102 @@ func TestFormatModelBlockDescribesModel(t *testing.T) {
 func TestFormatModelBlockEmptyWithoutModel(t *testing.T) {
 	if got := formatModelBlock(config.Config{}, modelinfo.Info{}); got != "" {
 		t.Errorf("expected empty block, got %q", got)
+	}
+}
+
+func TestApplyPluginOverridesReplacesList(t *testing.T) {
+	prof, err := profile.Resolve("cli")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := applyPluginOverrides(prof, config.Config{Plugins: []string{"sessions", "tools"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Plugins) != 2 || got.Plugins[0] != "sessions" || got.Plugins[1] != "tools" {
+		t.Errorf("plugins = %v", got.Plugins)
+	}
+}
+
+func TestApplyPluginOverridesAddAndRemove(t *testing.T) {
+	prof, err := profile.Resolve("core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// core has no shell; add cli, then remove memory.
+	got, err := applyPluginOverrides(prof, config.Config{
+		AddPlugins:    []string{"shell.cli"},
+		RemovePlugins: []string{"memory"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Has("shell.cli") {
+		t.Error("expected shell.cli to be added")
+	}
+	if got.Has("memory") {
+		t.Error("expected memory to be removed")
+	}
+	// Adding a duplicate is a no-op.
+	got2, _ := applyPluginOverrides(got, config.Config{AddPlugins: []string{"shell.cli"}})
+	count := 0
+	for _, id := range got2.Plugins {
+		if id == "shell.cli" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("shell.cli appears %d times, want 1", count)
+	}
+}
+
+func TestApplyPluginOverridesNoopWithoutConfig(t *testing.T) {
+	prof, err := profile.Resolve("web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := applyPluginOverrides(prof, config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Plugins) != len(prof.Plugins) {
+		t.Errorf("plugins changed without override: %v -> %v", prof.Plugins, got.Plugins)
+	}
+}
+
+func TestValidatePluginsRejectsUnknown(t *testing.T) {
+	if err := validatePlugins([]string{"sessions", "no.such.plugin"}, Options{}); err == nil {
+		t.Fatal("expected validation to reject unknown plugin")
+	}
+	if err := validatePlugins([]string{"sessions", "shell.cli"}, Options{}); err != nil {
+		t.Fatalf("known plugins should pass: %v", err)
+	}
+}
+
+func TestConfigDrivenProfileSelection(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.Profile = "cli"
+	a, err := New(context.Background(), cfg, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	if a.Shell == nil || a.Shell.Name() != "cli" {
+		t.Fatalf("config profile not applied, shell = %v", a.Shell)
+	}
+}
+
+func TestConfigDrivenPluginOverrideBoots(t *testing.T) {
+	cfg := testConfig(t)
+	// Start from core (no shell) and add the CLI shell via config.
+	cfg.Profile = "core"
+	cfg.AddPlugins = []string{"shell.cli"}
+	a, err := New(context.Background(), cfg, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer a.Close()
+	if a.Shell == nil || a.Shell.Name() != "cli" {
+		t.Fatalf("added shell not mounted, shell = %v", a.Shell)
 	}
 }

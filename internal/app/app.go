@@ -9,33 +9,17 @@ import (
 	"strings"
 	"time"
 
-	"coren/examples/clockplugin"
 	"coren/internal/config"
 	"coren/internal/profile"
 	"coren/pkg/agent"
 	"coren/pkg/agents"
-	"coren/pkg/authz"
 	"coren/pkg/coren"
 	"coren/pkg/ctxfiles"
 	"coren/pkg/llm"
 	"coren/pkg/modelinfo"
-	"coren/pkg/plugins/ask"
-	"coren/pkg/plugins/builtintools"
-	"coren/pkg/plugins/coreagent"
-	deliverplugin "coren/pkg/plugins/deliver"
-	"coren/pkg/plugins/guard"
-	"coren/pkg/plugins/logging"
-	mcpPlugin "coren/pkg/plugins/mcp"
 	memoryplugin "coren/pkg/plugins/memory"
-	"coren/pkg/plugins/memsession"
-	"coren/pkg/plugins/openaillm"
-	"coren/pkg/plugins/shellcli"
-	"coren/pkg/plugins/shellweb"
-	"coren/pkg/plugins/skills"
-	"coren/pkg/plugins/subagents"
 	todoplugin "coren/pkg/plugins/todo"
 	"coren/pkg/prompt"
-	"coren/pkg/risk"
 	"coren/pkg/session"
 	"coren/pkg/shell"
 )
@@ -63,10 +47,22 @@ type App struct {
 
 // New boots the profile named in opts for cfg.
 func New(ctx context.Context, cfg config.Config, opts Options) (*App, error) {
-	prof, err := profile.Resolve(opts.Profile)
+	profileName := opts.Profile
+	if profileName == "" {
+		profileName = cfg.Profile
+	}
+	prof, err := profile.Resolve(profileName)
 	if err != nil {
 		return nil, err
 	}
+	prof, err = applyPluginOverrides(prof, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := validatePlugins(prof.Plugins, opts); err != nil {
+		return nil, err
+	}
+	opts.Profile = prof.Name
 
 	info := resolveModelInfo(ctx, cfg)
 
@@ -96,9 +92,10 @@ func New(ctx context.Context, cfg config.Config, opts Options) (*App, error) {
 		ToolTimeout:    toolTimeout(cfg),
 	}
 
+	bc := buildContext{Config: cfg, AgentConfig: agentConfig, Options: opts}
 	plugins := make([]coren.Plugin, 0, len(prof.Plugins))
 	for _, id := range prof.Plugins {
-		plugin, err := buildPlugin(id, cfg, agentConfig, opts)
+		plugin, err := buildPlugin(id, bc)
 		if err != nil {
 			return nil, err
 		}
@@ -303,81 +300,6 @@ func catalogPath(cfg config.Config) string {
 	return modelinfo.CachePath(filepath.Join(dir, "coren"))
 }
 
-// buildPlugin maps a profile plugin id to a plugin instance.
-func buildPlugin(id string, cfg config.Config, agentConfig agent.Agent, opts Options) (coren.Plugin, error) {
-	switch id {
-	case profile.PluginLLM:
-		return openaillm.ProviderPlugin{}, nil
-	case profile.PluginSessions:
-		return memsession.Plugin{Dir: cfg.SessionDir}, nil
-	case profile.PluginTools:
-		return builtintools.ProviderPlugin{}, nil
-	case profile.PluginAgents:
-		return coreagent.ProviderPlugin{}, nil
-	case profile.PluginLLMOpenAI:
-		return openaillm.Plugin{Config: openaillm.Config{
-			API:        cfg.API,
-			BaseURL:    cfg.BaseURL,
-			APIKey:     cfg.APIKey,
-			MaxRetries: cfg.MaxRetries,
-		}}, nil
-	case profile.PluginToolsBuiltin:
-		return builtintools.Plugin{WorkDir: cfg.WorkDir}, nil
-	case profile.PluginAgentLoop:
-		return coreagent.LoopPlugin{Config: coreagent.Config{
-			Model:       agentConfig.Model,
-			System:      agentConfig.System,
-			Temperature: agentConfig.Temperature,
-			MaxTokens:   agentConfig.MaxTokens,
-			MaxSteps:    agentConfig.MaxSteps,
-		}}, nil
-	case profile.PluginShellWeb:
-		return shellweb.Plugin{AgentConfig: agentConfig, Addr: cfg.Addr}, nil
-	case profile.PluginShellCLI:
-		return shellcli.Plugin{AgentConfig: agentConfig}, nil
-	case profile.PluginToolsClock:
-		return clockplugin.Plugin{}, nil
-	case profile.PluginLogging:
-		return logging.Plugin{}, nil
-	case profile.PluginSkills:
-		return skillsplugin.ProviderPlugin{Dir: cfg.SkillsDir}, nil
-	case profile.PluginSkillsTools:
-		return skillsplugin.ToolsPlugin{}, nil
-	case profile.PluginSubagents:
-		return subagentsplugin.ProviderPlugin{}, nil
-	case profile.PluginSubagentsIP:
-		return subagentsplugin.InProcessPlugin{Config: subagentsplugin.Config{
-			Model:    cfg.Model,
-			MaxSteps: cfg.MaxSteps,
-		}}, nil
-	case profile.PluginSubagentsTool:
-		return subagentsplugin.ToolPlugin{}, nil
-	case profile.PluginAsk:
-		return askplugin.Plugin{}, nil
-	case profile.PluginMCP:
-		return mcpPlugin.Plugin{Config: mcpPlugin.Config{Servers: mcpServers(cfg.MCP)}}, nil
-	case profile.PluginMemory:
-		return memoryplugin.Plugin{Config: memoryplugin.Config{Path: memoryPath(cfg)}}, nil
-	case profile.PluginTodo:
-		return todoplugin.Plugin{Config: todoplugin.Config{Path: todoPath(cfg)}}, nil
-	case profile.PluginDelivery:
-		return deliverplugin.ProviderPlugin{AutoApprove: cfg.DeliverAutoApprove}, nil
-	case profile.PluginDeliver:
-		return deliverplugin.Plugin{Config: deliverplugin.Config{WorkDir: cfg.WorkDir}}, nil
-	case profile.PluginApproval:
-		level, _ := authz.Parse(cfg.Authz)
-		return guard.ProviderPlugin{Authz: level}, nil
-	case profile.PluginGuard:
-		return guard.Plugin{Config: guardConfig(cfg)}, nil
-	default:
-		// Fall through to any externally registered factory.
-		if opts.Registry != nil && opts.Registry.Has(id) {
-			return opts.Registry.Build(id, cfg)
-		}
-		return nil, fmt.Errorf("app: unknown plugin %q in profile %q", id, opts.Profile)
-	}
-}
-
 // Close shuts the kernel down, unwinding every plugin's registrations.
 func (a *App) Close() error {
 	if a == nil || a.Kernel == nil {
@@ -393,41 +315,6 @@ func (a *App) AdapterNames() []string {
 		return nil
 	}
 	return service.Names()
-}
-
-// mcpServers converts configuration entries to the MCP plugin's server type.
-func mcpServers(in []config.MCPServer) []mcpPlugin.ServerConfig {
-	out := make([]mcpPlugin.ServerConfig, 0, len(in))
-	for _, s := range in {
-		out = append(out, mcpPlugin.ServerConfig{
-			Name:      s.Name,
-			URL:       s.URL,
-			Transport: s.Transport,
-			Headers:   s.Headers,
-			Enabled:   s.Enabled,
-		})
-	}
-	return out
-}
-
-// guardConfig builds the guard configuration from settings.
-func guardConfig(cfg config.Config) guard.Config {
-	rules := make([]risk.Rule, 0, len(cfg.RiskRules))
-	for _, r := range cfg.RiskRules {
-		rules = append(rules, risk.Rule{
-			Name:     r.Name,
-			Severity: risk.Severity(r.Severity),
-			Tools:    r.Tools,
-			Pattern:  r.Pattern,
-			Reason:   r.Reason,
-		})
-	}
-	level, _ := authz.Parse(cfg.Authz)
-	return guard.Config{
-		Authz:           level,
-		Rules:           rules,
-		DisableDefaults: cfg.DisableDefaultRiskRules,
-	}
 }
 
 // toolTimeout resolves the per-tool timeout from seconds in config.

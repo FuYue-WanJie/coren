@@ -17,6 +17,15 @@ const FileName = "coren.json"
 
 // Config holds runtime settings for the CLI and server.
 type Config struct {
+	// Profile names the composition to boot; empty uses the launcher default.
+	Profile string `json:"profile,omitempty"`
+	// Plugins, when non-empty, replaces the profile's plugin list entirely.
+	// Each entry is a plugin id (e.g. "shell.web", "memory").
+	Plugins []string `json:"plugins,omitempty"`
+	// AddPlugins appends plugin ids to the profile's list.
+	AddPlugins []string `json:"add_plugins,omitempty"`
+	// RemovePlugins drops plugin ids from the profile's list.
+	RemovePlugins []string `json:"remove_plugins,omitempty"`
 	// API selects the provider flavour: "chat" or "responses".
 	API string `json:"api"`
 	// BaseURL is the OpenAI-compatible endpoint root, e.g. https://api.openai.com/v1.
@@ -114,19 +123,23 @@ type ContextFiles struct {
 // fileConfig mirrors Config but every field is a pointer so that an unset key in
 // a file does not overwrite a lower layer. It also accepts a template file.
 type fileConfig struct {
-	API         *string     `json:"api"`
-	BaseURL     *string     `json:"base_url"`
-	APIKey      *string     `json:"api_key"`
-	Model       *string     `json:"model"`
-	System      *string     `json:"system"`
-	WorkDir     *string     `json:"work_dir"`
-	Addr        *string     `json:"addr"`
-	SessionDir  *string     `json:"session_dir"`
-	SkillsDir   *string     `json:"skills_dir"`
-	Temperature *float64    `json:"temperature"`
-	MaxTokens   *int        `json:"max_tokens"`
-	MaxSteps    *int        `json:"max_steps"`
-	MCP         []MCPServer `json:"mcp,omitempty"`
+	API           *string     `json:"api"`
+	BaseURL       *string     `json:"base_url"`
+	APIKey        *string     `json:"api_key"`
+	Model         *string     `json:"model"`
+	Profile       *string     `json:"profile,omitempty"`
+	Plugins       []string    `json:"plugins,omitempty"`
+	AddPlugins    []string    `json:"add_plugins,omitempty"`
+	RemovePlugins []string    `json:"remove_plugins,omitempty"`
+	System        *string     `json:"system"`
+	WorkDir       *string     `json:"work_dir"`
+	Addr          *string     `json:"addr"`
+	SessionDir    *string     `json:"session_dir"`
+	SkillsDir     *string     `json:"skills_dir"`
+	Temperature   *float64    `json:"temperature"`
+	MaxTokens     *int        `json:"max_tokens"`
+	MaxSteps      *int        `json:"max_steps"`
+	MCP           []MCPServer `json:"mcp,omitempty"`
 
 	ContextFiles            *ContextFiles            `json:"context_files,omitempty"`
 	MemoryPath              *string                  `json:"memory_path,omitempty"`
@@ -233,6 +246,18 @@ func applyFile(cfg *Config, path string) {
 	}
 	if fc.Model != nil {
 		cfg.Model = *fc.Model
+	}
+	if fc.Profile != nil {
+		cfg.Profile = *fc.Profile
+	}
+	if len(fc.Plugins) > 0 {
+		cfg.Plugins = fc.Plugins
+	}
+	if len(fc.AddPlugins) > 0 {
+		cfg.AddPlugins = append(cfg.AddPlugins, fc.AddPlugins...)
+	}
+	if len(fc.RemovePlugins) > 0 {
+		cfg.RemovePlugins = append(cfg.RemovePlugins, fc.RemovePlugins...)
 	}
 	if fc.System != nil {
 		cfg.System = *fc.System
