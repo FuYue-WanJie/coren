@@ -40,6 +40,11 @@ type Config struct {
 	WorkDir string `json:"work_dir"`
 	// Addr is the WebUI/API listen address.
 	Addr string `json:"addr"`
+	// Password gates non-loopback access; empty disables authentication. When the
+	// listener is not loopback, an empty password makes startup fail.
+	Password string `json:"password,omitempty"`
+	// SessionTTLHours is how long a login session stays valid; zero uses 168 (7d).
+	SessionTTLHours int `json:"session_ttl_hours,omitempty"`
 	// SessionDir stores the append-only session logs; empty disables persistence.
 	SessionDir string `json:"session_dir"`
 	// SkillsDir is the skill directory to scan; empty disables file discovery.
@@ -139,6 +144,8 @@ type fileConfig struct {
 	Addr            *string          `json:"addr"`
 	SessionDir      *string          `json:"session_dir"`
 	SkillsDir       *string          `json:"skills_dir"`
+	Password        *string          `json:"password,omitempty"`
+	SessionTTLHours *int             `json:"session_ttl_hours,omitempty"`
 	Temperature     *float64         `json:"temperature"`
 	MaxTokens       *int             `json:"max_tokens"`
 	MaxSteps        *int             `json:"max_steps"`
@@ -290,6 +297,12 @@ func applyFile(cfg *Config, path string) {
 	if fc.SkillsDir != nil {
 		cfg.SkillsDir = *fc.SkillsDir
 	}
+	if fc.Password != nil {
+		cfg.Password = *fc.Password
+	}
+	if fc.SessionTTLHours != nil {
+		cfg.SessionTTLHours = *fc.SessionTTLHours
+	}
 	if len(fc.MCP) > 0 {
 		cfg.MCP = fc.MCP
 	}
@@ -379,6 +392,9 @@ func applyEnv(cfg *Config) {
 	}
 	if v := strings.TrimSpace(os.Getenv("COREN_SKILLS_DIR")); v != "" {
 		cfg.SkillsDir = v
+	}
+	if v := os.Getenv("COREN_PASSWORD"); v != "" {
+		cfg.Password = v
 	}
 	if v := strings.TrimSpace(os.Getenv("COREN_REASONING")); v != "" {
 		cfg.Reasoning = v

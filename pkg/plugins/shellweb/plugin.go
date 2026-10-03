@@ -10,12 +10,15 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
+	"time"
 
 	"coren/pkg/agent"
 	"coren/pkg/agents"
 	"coren/pkg/coren"
 	"coren/pkg/session"
 	"coren/pkg/shell"
+	"coren/pkg/webauth"
 )
 
 //go:embed web
@@ -27,6 +30,9 @@ type Plugin struct {
 	AgentConfig agent.Agent
 	// Addr is the listen address, e.g. "127.0.0.1:8787".
 	Addr string
+	// Auth gates API access with a password session. Nil disables authentication
+	// (loopback-only deployments).
+	Auth *webauth.Store
 }
 
 func (Plugin) ID() string       { return "shell.web" }
@@ -39,7 +45,7 @@ func (p Plugin) Apply(ctx coren.Context) error {
 	}
 	ag := p.AgentConfig
 	ag.Context = ctx
-	ctx.Provide(shell.Key, &Shell{agent: &ag, sessions: sessions, addr: p.Addr})
+	ctx.Provide(shell.Key, &Shell{agent: &ag, sessions: sessions, addr: p.Addr, auth: p.Auth})
 	return nil
 }
 
@@ -48,6 +54,7 @@ type Shell struct {
 	agent    *agent.Agent
 	sessions session.Service
 	addr     string
+	auth     *webauth.Store
 }
 
 func (s *Shell) Name() string { return "web" }
@@ -60,7 +67,10 @@ func (s *Shell) Run(ctx context.Context) error {
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/health", s.handleHealth)
-	mux.HandleFunc("/api/chat", s.handleChat)
+	mux.HandleFunc("/api/login", s.handleLogin)
+	mux.HandleFunc("/api/logout", s.handleLogout)
+	mux.Handle("/api/authcheck", s.guard(http.HandlerFunc(s.handleAuthCheck)))
+	mux.Handle("/api/chat", s.guard(http.HandlerFunc(s.handleChat)))
 	mux.Handle("/", http.FileServer(http.FS(static)))
 
 	server := &http.Server{Addr: s.addr, Handler: mux, BaseContext: func(net.Listener) context.Context { return ctx }}
@@ -68,6 +78,9 @@ func (s *Shell) Run(ctx context.Context) error {
 	errCh := make(chan error, 1)
 	go func() {
 		log.Printf("Coren listening on http://%s", s.addr)
+		if s.auth != nil && s.auth.Required() {
+			log.Printf("web authentication is enabled; log in with your password")
+		}
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}
@@ -81,9 +94,83 @@ func (s *Shell) Run(ctx context.Context) error {
 	}
 }
 
+// guard requires a valid session token on API requests when auth is enabled.
+func (s *Shell) guard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.auth != nil && s.auth.Required() && !s.auth.Validate(bearerToken(r)) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// bearerToken extracts the token from the Authorization header.
+func bearerToken(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	if len(h) > 7 && strings.EqualFold(h[:7], "Bearer ") {
+		return strings.TrimSpace(h[7:])
+	}
+	return ""
+}
+
 func (s *Shell) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// loginRequest carries the password to exchange for a session token.
+type loginRequest struct {
+	Password string `json:"password"`
+}
+
+// handleLogin validates the password and returns a session token.
+func (s *Shell) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.auth == nil {
+		http.Error(w, "authentication disabled", http.StatusNotFound)
+		return
+	}
+	var req loginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	token, expires, ok := s.auth.Login(req.Password)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid password"})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"token":      token,
+		"expires_at": expires.UTC().Format(time.RFC3339),
+	})
+}
+
+// handleLogout revokes the caller's token.
+func (s *Shell) handleLogout(w http.ResponseWriter, r *http.Request) {
+	if s.auth == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	s.auth.Logout(bearerToken(r))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleAuthCheck reports whether auth is required and the caller is accepted.
+// It always sits behind guard, so reaching it means the token is valid.
+func (s *Shell) handleAuthCheck(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	required := s.auth != nil && s.auth.Required()
+	_ = json.NewEncoder(w).Encode(map[string]bool{"required": required, "authenticated": true})
 }
 
 type chatRequest struct {

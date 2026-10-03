@@ -2,10 +2,12 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	"coren/internal/config"
 	"coren/internal/profile"
 	hostplugin "coren/pkg/plugins/host"
+	"coren/pkg/webauth"
 )
 
 // applyPluginOverrides rewrites a profile's plugin list from configuration.
@@ -82,4 +84,12 @@ func externalPlugins(in []config.ExternalPlugin) []hostplugin.PluginConfig {
 		})
 	}
 	return out
+}
+
+// webAuth builds the session store from configuration, or nil when auth is off.
+func webAuth(cfg config.Config) *webauth.Store {
+	if cfg.Password == "" {
+		return nil
+	}
+	return webauth.New(cfg.Password, time.Duration(cfg.SessionTTLHours)*time.Hour)
 }

@@ -41,6 +41,9 @@ go test ./...
 ./coren serve
 # 打开 http://127.0.0.1:8787
 
+# 监听其他地址供局域网访问（必须设密码，否则拒绝启动）
+./coren serve --addr 0.0.0.0:8787 --password <你的密码>
+
 # 终端交互或单次提问
 ./coren run
 ./coren run "用一句话解释 goroutine"

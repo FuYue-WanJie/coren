@@ -132,7 +132,11 @@ var builtins = func() *catalog {
 		}}, nil
 	})
 	c.register(profile.PluginShellWeb, func(bc buildContext) (coren.Plugin, error) {
-		return shellweb.Plugin{AgentConfig: bc.AgentConfig, Addr: bc.Config.Addr}, nil
+		return shellweb.Plugin{
+			AgentConfig: bc.AgentConfig,
+			Addr:        bc.Config.Addr,
+			Auth:        webAuth(bc.Config),
+		}, nil
 	})
 	c.register(profile.PluginShellCLI, func(bc buildContext) (coren.Plugin, error) {
 		return shellcli.Plugin{AgentConfig: bc.AgentConfig}, nil

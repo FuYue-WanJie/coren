@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 
@@ -91,35 +92,48 @@ func listProfiles() {
 
 // run resolves the profile and shell from args, boots the app, and runs the shell.
 func run(args []string) error {
+	// Strip a leading subcommand so flags may follow it (e.g. "serve --addr ...").
+	profileName := ""
+	if len(args) > 0 {
+		switch args[0] {
+		case "serve":
+			profileName = "web"
+			args = args[1:]
+		case "run":
+			profileName = "cli"
+			args = args[1:]
+		}
+	}
+
 	fs := flag.NewFlagSet("coren", flag.ContinueOnError)
-	profileName := fs.String("profile", "", "profile to run (default web)")
+	profileFlag := fs.String("profile", "", "profile to run")
+	addr := fs.String("addr", "", "listen address, e.g. 0.0.0.0:8787")
+	password := fs.String("password", "", "web login password (required when listening off loopback)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-
-	// Accept "coren serve" / "coren run [prompt]" as shortcuts for profiles.
-	positional := fs.Args()
-	switch {
-	case len(positional) > 0 && positional[0] == "serve":
-		if *profileName == "" {
-			*profileName = "web"
-		}
-		positional = positional[1:]
-	case len(positional) > 0 && positional[0] == "run":
-		if *profileName == "" {
-			*profileName = "cli"
-		}
-		positional = positional[1:]
+	if *profileFlag != "" {
+		profileName = *profileFlag
 	}
+	positional := fs.Args()
 
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
+	if *addr != "" {
+		cfg.Addr = *addr
+	}
+	if *password != "" {
+		cfg.Password = *password
+	}
+	if err := checkExposure(cfg); err != nil {
+		return err
+	}
 	prompt := strings.TrimSpace(strings.Join(positional, " "))
 
 	application, err := app.New(context.Background(), cfg, app.Options{
-		Profile: *profileName,
+		Profile: profileName,
 		Prompt:  prompt,
 	})
 	if err != nil {
@@ -135,6 +149,29 @@ func run(args []string) error {
 		return fmt.Errorf("profile %q has no shell to run", application.Profile.Name)
 	}
 	return application.Shell.Run(context.Background())
+}
+
+// checkExposure refuses to start when a non-loopback address is used without a
+// password, since that would expose the agent to anyone who can reach it.
+func checkExposure(cfg config.Config) error {
+	if isLoopbackAddr(cfg.Addr) || cfg.Password != "" {
+		return nil
+	}
+	return fmt.Errorf("refusing to listen on %q without a password; set --password, COREN_PASSWORD, or a password in %s", cfg.Addr, config.FileName)
+}
+
+// isLoopbackAddr reports whether an address only accepts local connections.
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// No port or malformed: treat as local only if it looks loopback.
+		host = addr
+	}
+	switch host {
+	case "", "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	return false
 }
 
 // runPromptOnce drives a single turn through whichever shell supports it.

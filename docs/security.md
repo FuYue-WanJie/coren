@@ -112,6 +112,30 @@ coren: 2026/10/03 17:34:08 usage input=1234 output=56
 
 涵盖模型请求、工具起止与耗时、token 用量，可重建一次会话的时间线。
 
+## Web 访问认证
+
+当 WebUI/API 监听的地址不是回环地址时，Coren 要求密码登录：客户端用密码换取一个
+**会话令牌**，在有效期内以 `Authorization: Bearer <token>` 访问受保护接口。
+
+- 回环地址（`127.0.0.1`、`localhost`、`::1`）免认证，保持本机体验
+- 非回环地址且未设密码 → **拒绝启动**，避免意外暴露
+- 密码来源：`--password`、`COREN_PASSWORD`、或配置 `password`
+- 令牌随机生成、只存内存，重启即失效；默认有效期 7 天（`session_ttl_hours`）
+- 密码与令牌都比较使用恒定时间比较，避免时序侧信道
+
+接口：
+
+```
+POST /api/login   {password}   -> {token, expires_at}
+POST /api/logout               -> 204（吊销当前令牌）
+GET  /api/authcheck            -> {required, authenticated}
+```
+
+前端在首次访问或令牌过期（401）时弹出登录框；登录成功后令牌存于浏览器本地存储。
+
+这是**访客身份**层面的控制，与 `authz`（模型能用哪些工具）是两层不同的事。远程暴露
+时建议 `authz` 保持 `trusted`，并让审批继续生效。
+
 ## 配置汇总
 
 | 字段 | 作用 | 默认 |
@@ -121,3 +145,5 @@ coren: 2026/10/03 17:34:08 usage input=1234 output=56
 | `disable_default_risk_rules` | 关闭内置规则 | false |
 | `tool_timeout` | 工具超时（秒） | 120 |
 | `max_retries` | 模型传输重试次数 | 3 |
+| `password` | Web 登录密码（非回环必填） | 无 |
+| `session_ttl_hours` | 登录令牌有效期（小时） | 168 |

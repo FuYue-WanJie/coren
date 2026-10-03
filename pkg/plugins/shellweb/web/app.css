@@ -92,3 +92,49 @@ header h1 { font-size: 18px; margin: 0; }
 }
 
 #send:disabled { opacity: 0.5; cursor: default; }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 14, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.overlay.hidden { display: none; }
+
+.login-box {
+  background: var(--panel);
+  border: 1px solid #2c3140;
+  border-radius: 14px;
+  padding: 24px;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-box h2 { margin: 0; font-size: 18px; }
+
+.login-box input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #2c3140;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.login-box button {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.login-error { color: #ff9a9a; font-size: 13px; min-height: 16px; margin: 0; }
