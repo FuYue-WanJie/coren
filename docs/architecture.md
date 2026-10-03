@@ -189,3 +189,17 @@ turn/start
 | 能力事件 | agent/* tools/* | hook | 拦截与策略 |
 | profile/bundle | profile/bundle | config | 组合与分发 |
 | `agent-loop` | `core/agent-loop` | session engine | 默认驱动可替换 |
+
+## 9. WebUI 的提取与更新
+
+WebUI 资源通过 `embed` 打进二进制，同时可以在首次启动时提取到磁盘，便于本地修改：
+
+- 提取目录：`web_dir`（默认 `~/.config/coren/webui`，`-` 表示只用内嵌）
+- 提取时写入标记文件 `.coren-webui.json`，记录**内容哈希**与**程序版本号**
+- 启动与打开界面时对比：磁盘标记的哈希 ≠ 当前内置哈希 → 提示可更新
+  - 提示信息展示"你修改时基于的版本"与"当前内置版本"（哈希用于判定，版本号用于展示）
+  - 更新时先把旧目录备份为 `webui.bak-<时间戳>`，再全量覆盖
+- 磁盘副本存在时优先使用；否则回退内嵌资源
+- 接口：`GET /api/webui/status`、`POST /api/webui/update`
+
+这样单二进制分发与"改 UI 不重编"两种用法兼得，且用户改动不会被静默覆盖。

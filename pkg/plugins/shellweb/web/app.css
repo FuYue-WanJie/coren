@@ -92,3 +92,35 @@ header h1 { font-size: 18px; margin: 0; }
 }
 
 #send:disabled { opacity: 0.5; cursor: default; }
+
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 20px;
+  background: #2a2410;
+  border-bottom: 1px solid #4a3d12;
+  color: #f0b429;
+  font-size: 13px;
+}
+
+.notice.hidden { display: none; }
+
+.notice-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+.notice button {
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.notice button.ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid #3a4152;
+}

@@ -91,26 +91,28 @@ func listProfiles() {
 
 // run resolves the profile and shell from args, boots the app, and runs the shell.
 func run(args []string) error {
+	// Strip a leading subcommand so flags may follow it (e.g. "serve --addr ...").
+	profileName := ""
+	if len(args) > 0 {
+		switch args[0] {
+		case "serve":
+			profileName = "web"
+			args = args[1:]
+		case "run":
+			profileName = "cli"
+			args = args[1:]
+		}
+	}
+
 	fs := flag.NewFlagSet("coren", flag.ContinueOnError)
-	profileName := fs.String("profile", "", "profile to run (default web)")
+	profileFlag := fs.String("profile", "", "profile to run")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-
-	// Accept "coren serve" / "coren run [prompt]" as shortcuts for profiles.
-	positional := fs.Args()
-	switch {
-	case len(positional) > 0 && positional[0] == "serve":
-		if *profileName == "" {
-			*profileName = "web"
-		}
-		positional = positional[1:]
-	case len(positional) > 0 && positional[0] == "run":
-		if *profileName == "" {
-			*profileName = "cli"
-		}
-		positional = positional[1:]
+	if *profileFlag != "" {
+		profileName = *profileFlag
 	}
+	positional := fs.Args()
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -119,8 +121,10 @@ func run(args []string) error {
 	prompt := strings.TrimSpace(strings.Join(positional, " "))
 
 	application, err := app.New(context.Background(), cfg, app.Options{
-		Profile: *profileName,
-		Prompt:  prompt,
+		Profile:         profileName,
+		Prompt:          prompt,
+		AppVersion:      version,
+		WebUpdatePrompt: true,
 	})
 	if err != nil {
 		return err
@@ -134,7 +138,26 @@ func run(args []string) error {
 	if application.Shell == nil {
 		return fmt.Errorf("profile %q has no shell to run", application.Profile.Name)
 	}
+	// Report a stale extracted WebUI before entering the shell.
+	if st, ok := application.WebUIStatus(); ok && st.UpdateAvailable {
+		fmt.Fprintf(os.Stderr, "\nWebUI 有新版本可用：你修改时基于版本 %s，当前内置版本 %s。\n打开 WebUI 会提示更新，或在 WebUI 中确认。\n\n",
+			displayVersion(st.DiskVersion, st.DiskHash), displayVersion(st.BuiltinVersion, st.BuiltinHash))
+	}
 	return application.Shell.Run(context.Background())
+}
+
+// displayVersion prefers a version string, falling back to a short hash.
+func displayVersion(version, hash string) string {
+	if version != "" {
+		return version
+	}
+	if len(hash) > 12 {
+		return hash[:12]
+	}
+	if hash == "" {
+		return "unknown"
+	}
+	return hash
 }
 
 // runPromptOnce drives a single turn through whichever shell supports it.

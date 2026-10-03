@@ -7,6 +7,58 @@
   const status = document.getElementById("status");
   const sessionId = "web-" + Math.random().toString(36).slice(2, 8);
 
+  // WebUI update notice.
+  const notice = document.getElementById("webui-notice");
+  const noticeText = document.getElementById("webui-notice-text");
+  const updateBtn = document.getElementById("webui-update");
+  const dismissBtn = document.getElementById("webui-dismiss");
+
+  function shortHash(h) {
+    return h ? h.slice(0, 12) : "未知";
+  }
+
+  function label(version, hash) {
+    return version ? version : shortHash(hash);
+  }
+
+  // checkWebUIUpdate asks the server whether the extracted UI is stale.
+  async function checkWebUIUpdate() {
+    try {
+      const resp = await fetch("/api/webui/status");
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (!data.enabled || !data.update_available) return;
+      noticeText.textContent =
+        "WebUI 有更新：你修改时基于 " + label(data.disk_version, data.disk_hash) +
+        "，当前内置版本 " + label(data.builtin_version, data.builtin_hash) + "。";
+      notice.classList.remove("hidden");
+    } catch {
+      // Status is best-effort; ignore failures.
+    }
+  }
+
+  updateBtn.addEventListener("click", async () => {
+    updateBtn.disabled = true;
+    try {
+      const resp = await fetch("/api/webui/update", { method: "POST" });
+      if (resp.ok) {
+        // The new UI is on disk; reload to pick it up.
+        location.reload();
+        return;
+      }
+      const data = await resp.json().catch(() => ({}));
+      noticeText.textContent = "更新失败：" + (data.error || resp.status);
+    } catch (err) {
+      noticeText.textContent = "更新失败：" + err.message;
+    } finally {
+      updateBtn.disabled = false;
+    }
+  });
+
+  dismissBtn.addEventListener("click", () => {
+    notice.classList.add("hidden");
+  });
+
   function addMessage(role, text) {
     const el = document.createElement("div");
     el.className = "msg " + role;
@@ -104,4 +156,5 @@
   }
 
   input.focus();
+  checkWebUIUpdate();
 })();

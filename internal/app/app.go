@@ -38,6 +38,7 @@ import (
 	"coren/pkg/risk"
 	"coren/pkg/session"
 	"coren/pkg/shell"
+	"coren/pkg/webui"
 )
 
 // Options selects the profile and shell-specific settings.
@@ -48,6 +49,11 @@ type Options struct {
 	Prompt string
 	// Registry, when set, resolves plugin ids the framework does not ship.
 	Registry *profile.Registry
+	// AppVersion is the human-readable build version, recorded with extracted
+	// WebUI assets and shown in update prompts.
+	AppVersion string
+	// WebUpdatePrompt controls whether startup reports an available WebUI update.
+	WebUpdatePrompt bool
 }
 
 // App owns a booted kernel and the mounts it assembled.
@@ -303,6 +309,23 @@ func catalogPath(cfg config.Config) string {
 	return modelinfo.CachePath(filepath.Join(dir, "coren"))
 }
 
+// webUIDir resolves where the WebUI copy is extracted. An explicit path wins;
+// "-" disables extraction (embedded only); otherwise it defaults under the user
+// config directory.
+func webUIDir(cfg config.Config) string {
+	if cfg.WebDir == "-" {
+		return ""
+	}
+	if cfg.WebDir != "" {
+		return cfg.WebDir
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "coren", "webui")
+}
+
 // buildPlugin maps a profile plugin id to a plugin instance.
 func buildPlugin(id string, cfg config.Config, agentConfig agent.Agent, opts Options) (coren.Plugin, error) {
 	switch id {
@@ -332,7 +355,13 @@ func buildPlugin(id string, cfg config.Config, agentConfig agent.Agent, opts Opt
 			MaxSteps:    agentConfig.MaxSteps,
 		}}, nil
 	case profile.PluginShellWeb:
-		return shellweb.Plugin{AgentConfig: agentConfig, Addr: cfg.Addr}, nil
+		return shellweb.Plugin{
+			AgentConfig:  agentConfig,
+			Addr:         cfg.Addr,
+			WebDir:       webUIDir(cfg),
+			AppVersion:   opts.AppVersion,
+			UpdatePrompt: opts.WebUpdatePrompt,
+		}, nil
 	case profile.PluginShellCLI:
 		return shellcli.Plugin{AgentConfig: agentConfig}, nil
 	case profile.PluginToolsClock:
@@ -393,6 +422,23 @@ func (a *App) AdapterNames() []string {
 		return nil
 	}
 	return service.Names()
+}
+
+// WebUIStatus reports the extracted WebUI's staleness, when a web shell with
+// extraction is mounted. The second return is false when unavailable.
+func (a *App) WebUIStatus() (webui.Status, bool) {
+	if a == nil || a.Kernel == nil {
+		return webui.Status{}, false
+	}
+	sh, ok := coren.UnwrapKey[shell.Shell](a.Kernel.Context(), shell.Key)
+	if !ok {
+		return webui.Status{}, false
+	}
+	provider, ok := sh.(webui.StatusProvider)
+	if !ok {
+		return webui.Status{}, false
+	}
+	return provider.WebUIStatus()
 }
 
 // mcpServers converts configuration entries to the MCP plugin's server type.

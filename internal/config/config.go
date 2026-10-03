@@ -33,6 +33,9 @@ type Config struct {
 	SessionDir string `json:"session_dir"`
 	// SkillsDir is the skill directory to scan; empty disables file discovery.
 	SkillsDir string `json:"skills_dir"`
+	// WebDir is where the WebUI copy is extracted; empty uses a default under
+	// the user config dir, and "-" keeps the UI embedded only (no extraction).
+	WebDir string `json:"web_dir,omitempty"`
 	// Temperature and MaxTokens are optional generation controls.
 	Temperature *float64 `json:"temperature,omitempty"`
 	MaxTokens   *int     `json:"max_tokens,omitempty"`
@@ -123,6 +126,7 @@ type fileConfig struct {
 	Addr        *string     `json:"addr"`
 	SessionDir  *string     `json:"session_dir"`
 	SkillsDir   *string     `json:"skills_dir"`
+	WebDir      *string     `json:"web_dir,omitempty"`
 	Temperature *float64    `json:"temperature"`
 	MaxTokens   *int        `json:"max_tokens"`
 	MaxSteps    *int        `json:"max_steps"`
@@ -248,6 +252,9 @@ func applyFile(cfg *Config, path string) {
 	}
 	if fc.SkillsDir != nil {
 		cfg.SkillsDir = *fc.SkillsDir
+	}
+	if fc.WebDir != nil {
+		cfg.WebDir = *fc.WebDir
 	}
 	if len(fc.MCP) > 0 {
 		cfg.MCP = fc.MCP
