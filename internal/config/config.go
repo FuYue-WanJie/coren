@@ -45,6 +45,9 @@ type Config struct {
 	// MemoryPath is the project memory file; empty uses MEMORY.md in WorkDir,
 	// and a single "-" disables memory.
 	MemoryPath string `json:"memory_path,omitempty"`
+	// TodoPath is the task list file; empty uses TODO.md in WorkDir, and a
+	// single "-" disables the todo tool.
+	TodoPath string `json:"todo_path,omitempty"`
 	// Guidelines are extra bullet lines appended to the system prompt.
 	Guidelines []string `json:"guidelines,omitempty"`
 	// AppendSystemPrompt is free text appended to the system prompt.
@@ -124,6 +127,7 @@ type fileConfig struct {
 
 	ContextFiles            *ContextFiles            `json:"context_files,omitempty"`
 	MemoryPath              *string                  `json:"memory_path,omitempty"`
+	TodoPath                *string                  `json:"todo_path,omitempty"`
 	Guidelines              []string                 `json:"guidelines,omitempty"`
 	AppendSystemPrompt      []string                 `json:"append_system_prompt,omitempty"`
 	CustomSystemPrompt      *string                  `json:"custom_system_prompt,omitempty"`
@@ -249,6 +253,9 @@ func applyFile(cfg *Config, path string) {
 	}
 	if fc.MemoryPath != nil {
 		cfg.MemoryPath = *fc.MemoryPath
+	}
+	if fc.TodoPath != nil {
+		cfg.TodoPath = *fc.TodoPath
 	}
 	if len(fc.Guidelines) > 0 {
 		cfg.Guidelines = fc.Guidelines

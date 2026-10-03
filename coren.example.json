@@ -52,5 +52,6 @@
       "pattern": "\\b(kubectl|terraform)\\b",
       "reason": "infrastructure changes need review"
     }
-  ]
+  ],
+  "todo_path": "TODO.md"
 }

@@ -32,6 +32,7 @@ import (
 	"coren/pkg/plugins/shellweb"
 	"coren/pkg/plugins/skills"
 	"coren/pkg/plugins/subagents"
+	todoplugin "coren/pkg/plugins/todo"
 	"coren/pkg/prompt"
 	"coren/pkg/risk"
 	"coren/pkg/session"
@@ -179,6 +180,12 @@ func assembleSystemPrompt(cfg config.Config) (string, error) {
 			opts.Append = append(opts.Append, "<project_memory>\n"+strings.TrimSpace(content)+"\n</project_memory>")
 		}
 	}
+	// Inject the open task list so the model resumes with awareness of pending work.
+	if todoPath(cfg) != "" {
+		if content := todoplugin.Load(todoPath(cfg)); strings.TrimSpace(content) != "" {
+			opts.Append = append(opts.Append, "<project_todos>\n"+strings.TrimSpace(content)+"\n</project_todos>")
+		}
+	}
 	return prompt.Build(opts), nil
 }
 
@@ -191,6 +198,17 @@ func memoryPath(cfg config.Config) string {
 		return cfg.MemoryPath
 	}
 	return memoryplugin.DefaultPath(cfg.WorkDir)
+}
+
+// todoPath resolves the task list file, honoring the disabled sentinel "-".
+func todoPath(cfg config.Config) string {
+	if cfg.TodoPath == "-" {
+		return ""
+	}
+	if cfg.TodoPath != "" {
+		return cfg.TodoPath
+	}
+	return todoplugin.DefaultPath(cfg.WorkDir)
 }
 
 const defaultSystem = "You are Coren, a concise and capable assistant. " +
@@ -295,6 +313,8 @@ func buildPlugin(id string, cfg config.Config, agentConfig agent.Agent, opts Opt
 		return mcpPlugin.Plugin{Config: mcpPlugin.Config{Servers: mcpServers(cfg.MCP)}}, nil
 	case profile.PluginMemory:
 		return memoryplugin.Plugin{Config: memoryplugin.Config{Path: memoryPath(cfg)}}, nil
+	case profile.PluginTodo:
+		return todoplugin.Plugin{Config: todoplugin.Config{Path: todoPath(cfg)}}, nil
 	case profile.PluginApproval:
 		level, _ := authz.Parse(cfg.Authz)
 		return guard.ProviderPlugin{Authz: level}, nil

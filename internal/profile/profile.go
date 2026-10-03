@@ -41,6 +41,7 @@ const (
 	PluginAsk           = "ask"
 	PluginMCP           = "mcp"
 	PluginMemory        = "memory"
+	PluginTodo          = "todo"
 	PluginApproval      = "approval"
 	PluginGuard         = "guard"
 )
@@ -52,7 +53,7 @@ var base = []string{
 	PluginLLMOpenAI, PluginToolsBuiltin, PluginAgentLoop,
 	PluginSkills, PluginSkillsTools,
 	PluginSubagents, PluginSubagentsIP, PluginSubagentsTool,
-	PluginAsk, PluginMCP, PluginMemory, PluginApproval, PluginGuard,
+	PluginAsk, PluginMCP, PluginMemory, PluginTodo, PluginApproval, PluginGuard,
 }
 
 // withBase returns a copy of base with extra plugins appended.

@@ -13,7 +13,7 @@
 - **子代理**：`task` 工具把任务委派给进程内隔离子会话，带回最终答案，支持委派深度限制
 - **提问工具**：`ask_user` 让模型在信息不足时向用户提问；CLI 外壳实现交互，无交互外壳明确降级
 - **MCP**：连接远程 MCP 服务器（Streamable HTTP + SSE），把其 tools/resources/prompts 接入本地
-- **提示词 / 规则 / 记忆**：可定制 system prompt；自动注入 `AGENTS.md`/`CLAUDE.md` 等规则文件；模型可用 `remember`/`recall` 维护跨会话记忆
+- **提示词 / 规则 / 记忆**：可定制 system prompt；自动注入 `AGENTS.md`/`CLAUDE.md` 等规则文件；模型可用 `remember`/`recall` 维护跨会话记忆；`todo` 工具维护 `TODO.md` 待办清单（启动时注入）
 - **Token 优化**：提示词缓存（`prompt_cache_key`）、会话压缩、精简指南、规则与记忆预注入
 - **多模态查看**：`read_file` 读到图片/音频/视频时，模型支持该模态则把内容送入模型，否则返回类型与原因
 - **模型信息**：`coren models --info <id>` 展示能力参数（上下文/工具/推理/模态/价格）；优先级为「配置 > provider API 字段 > models.dev 目录快照」
@@ -146,6 +146,7 @@ Coren/
 │   ├── ctxfiles/           # 项目规则文件发现与加载
 │   ├── prompt/             # 系统提示词组装
 │   ├── memory/             # 项目记忆存储
+│   ├── todo/               # 项目待办清单存储
 │   ├── session/             # 会话契约 + append-only 事件日志
 │   ├── agents/              # agents 服务 + Loop 契约
 │   ├── shell/               # 外壳契约
@@ -161,6 +162,7 @@ Coren/
 │       ├── mcp/             # 远程 MCP 服务器接入
 │       ├── guard/           # 授权/风险/审批/文件审查拦截
 │       ├── memory/          # remember/recall 记忆工具
+│       ├── todo/            # todo 待办清单工具
 │       ├── shellweb/        # HTTP API + 内嵌 WebUI
 │       ├── shellcli/        # 终端外壳
 │       └── logging/         # 事件追踪

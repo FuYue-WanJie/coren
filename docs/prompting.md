@@ -62,6 +62,32 @@ Coren 的目标之一是用更少的 Token 完成任务：既靠模型能力，�
 |---|---|
 | `memory_path` | 记忆文件路径；空则用工作目录的 `MEMORY.md`；`-` 关闭 |
 
+## 待办清单（TODO.md）
+
+模型用一个 `todo` 工具管理项目任务，动作包括 `add` / `list` / `done` / `remove` / `clear`：
+
+```
+todo(action="add", text="写测试")
+todo(action="done", id=1)        # 或 text="写测试" 做子串匹配
+todo(action="list")
+```
+
+清单存为标准 Markdown checklist（`TODO.md`），人类可直接编辑：
+
+```markdown
+- [x] 写测试
+- [ ] 写文档
+```
+
+与记忆一样，**待办在启动时注入 system prompt**（`<project_todos>` 段），
+新会话开局即知道未完成的工作，无需先调 `list`——同样是省 token 的设计。
+
+配置：
+
+| 字段 | 作用 |
+|---|---|
+| `todo_path` | 清单文件路径；空则用工作目录的 `TODO.md`；`-` 关闭 |
+
 ## Token 优化机制
 
 | 机制 | 说明 | 配置 |

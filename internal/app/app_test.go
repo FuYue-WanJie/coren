@@ -56,9 +56,9 @@ func TestAppBootsServices(t *testing.T) {
 
 	toolSvc, _ := coren.UnwrapKey[tools.Service](a.Kernel.Context(), tools.Key)
 	specs := toolSvc.Specs()
-	// 4 builtin + list_skills + use_skill + task + ask_user
-	if len(specs) != 10 {
-		t.Errorf("tools = %d, want 10", len(specs))
+	// 4 builtin + list_skills + use_skill + task + ask_user + memory x2 + todo
+	if len(specs) != 11 {
+		t.Errorf("tools = %d, want 11", len(specs))
 	}
 	if _, ok := coren.UnwrapKey[skills.Service](a.Kernel.Context(), skills.Key); !ok {
 		t.Error("skills service missing")
