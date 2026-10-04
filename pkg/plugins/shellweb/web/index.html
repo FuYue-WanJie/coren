@@ -6,55 +6,46 @@
   <title>Coren</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&display=swap" />
   <link rel="stylesheet" href="vendor/material-icons.css" />
-  <link rel="stylesheet" href="vendor/theme.css" />
-  <link rel="stylesheet" href="vendor/micl.css" />
+  <link rel="stylesheet" href="vendor/mdui.css" />
   <link rel="stylesheet" href="app.css" />
 </head>
-<body class="light">
-  <div class="app-layout">
-    <div id="scrim" class="scrim hidden"></div>
+<body>
+  <mdui-layout full-height>
+    <mdui-top-app-bar class="appbar">
+      <mdui-button-icon id="menu-toggle" icon="menu"></mdui-button-icon>
+      <mdui-top-app-bar-title id="appbar-title">Coren</mdui-top-app-bar-title>
+      <span id="status" class="appbar-status">就绪</span>
+      <div style="flex-grow: 1"></div>
+    </mdui-top-app-bar>
 
-    <!-- Session drawer -->
-    <aside id="drawer" class="app-drawer">
+    <mdui-navigation-drawer id="drawer" open>
       <div class="drawer-head">
         <span class="drawer-title">会话</span>
-        <button id="new-session" class="icon-btn" title="新建会话" aria-label="新建会话">
-          <span class="material-symbols-outlined">add</span>
-        </button>
+        <mdui-button-icon id="new-session" icon="add"></mdui-button-icon>
       </div>
-      <ul id="session-list" class="session-list"></ul>
-    </aside>
+      <mdui-list id="session-list"></mdui-list>
+    </mdui-navigation-drawer>
 
-    <div class="app-main">
-      <header class="appbar">
-        <button id="menu-toggle" class="icon-btn" title="会话列表" aria-label="会话列表">
-          <span class="material-symbols-outlined">menu</span>
-        </button>
-        <h1 id="appbar-title" class="appbar-title">Coren</h1>
-        <span id="status" class="appbar-status">就绪</span>
-      </header>
-
+    <mdui-layout-main class="main">
       <div id="webui-notice" class="notice hidden">
         <span id="webui-notice-text"></span>
         <span class="notice-actions">
-          <button id="webui-update" class="btn">更新</button>
-          <button id="webui-dismiss" class="btn ghost">保留</button>
+          <mdui-button id="webui-update" variant="filled">更新</mdui-button>
+          <mdui-button id="webui-dismiss" variant="text">保留</mdui-button>
         </span>
       </div>
 
       <main id="messages" class="messages" aria-live="polite"></main>
 
       <form id="composer" class="composer">
-        <textarea id="input" class="composer-input" rows="1"
-          placeholder="输入消息，Enter 发送"></textarea>
-        <button type="submit" id="send" class="send-btn" aria-label="发送">
-          <span class="material-symbols-outlined">send</span>
-        </button>
+        <mdui-text-field id="input" class="composer-input" rows="1" autosize
+          placeholder="输入消息，Enter 发送" variant="outlined"></mdui-text-field>
+        <mdui-button-icon id="send" class="composer-send" icon="send" variant="filled"></mdui-button-icon>
       </form>
-    </div>
-  </div>
+    </mdui-layout-main>
+  </mdui-layout>
 
-  <script src="vendor/micl.js"></script>
+  <script src="vendor/mdui.global.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

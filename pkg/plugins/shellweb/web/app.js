@@ -1,4 +1,4 @@
-// Coren WebUI client: session management, /api/chat SSE streaming, MICL-driven UI.
+// Coren WebUI client on MDUI: session management, /api/chat SSE streaming.
 (() => {
   const messagesEl = document.getElementById("messages");
   const form = document.getElementById("composer");
@@ -9,7 +9,6 @@
   const newSessionBtn = document.getElementById("new-session");
   const menuToggle = document.getElementById("menu-toggle");
   const drawer = document.getElementById("drawer");
-  const scrim = document.getElementById("scrim");
   const appbarTitle = document.getElementById("appbar-title");
 
   // WebUI update notice.
@@ -20,6 +19,21 @@
 
   let currentSessionId = null; // null until the first message creates one
   let streaming = false;
+
+  const isMobile = () => window.matchMedia("(max-width: 840px)").matches;
+
+  // Drawer is modal on mobile, inline on desktop.
+  function applyDrawerMode() {
+    if (isMobile()) {
+      drawer.setAttribute("modal", "");
+      drawer.setAttribute("close-on-esc", "");
+      drawer.setAttribute("close-on-overlay-click", "");
+    } else {
+      drawer.removeAttribute("modal");
+      drawer.removeAttribute("close-on-esc");
+      drawer.removeAttribute("close-on-overlay-click");
+    }
+  }
 
   // ---------- helpers ----------
 
@@ -60,12 +74,15 @@
   function renderSessions(sessions) {
     sessionList.innerHTML = "";
     for (const s of sessions) {
-      const li = document.createElement("li");
-      li.className = "micl-list__item session-item" + (s.id === currentSessionId ? " active" : "");
-      li.dataset.id = s.id;
+      const item = document.createElement("mdui-list-item");
+      item.setAttribute("rounded", "");
+      item.dataset.id = s.id;
+      if (s.id === currentSessionId) item.setAttribute("active", "");
 
+      // Title + meta text.
       const text = document.createElement("div");
-      text.className = "session-item-text";
+      text.style.flex = "1";
+      text.style.minWidth = "0";
       const title = document.createElement("div");
       title.className = "session-item-title";
       title.textContent = s.title || "新会话";
@@ -74,23 +91,23 @@
       meta.textContent = (s.message_count || 0) + " 条消息";
       text.append(title, meta);
 
+      // Actions.
       const actions = document.createElement("div");
-      actions.className = "session-item-actions";
-      const renameBtn = document.createElement("button");
-      renameBtn.className = "icon-btn small";
-      renameBtn.innerHTML = '<span class="material-symbols-outlined">edit</span>';
+      actions.className = "session-actions";
+      actions.setAttribute("slot", "end-icon");
+      const renameBtn = document.createElement("mdui-button-icon");
+      renameBtn.setAttribute("icon", "edit");
       renameBtn.title = "重命名";
       renameBtn.addEventListener("click", (e) => { e.stopPropagation(); renameSession(s); });
-      const delBtn = document.createElement("button");
-      delBtn.className = "icon-btn small";
-      delBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
+      const delBtn = document.createElement("mdui-button-icon");
+      delBtn.setAttribute("icon", "delete");
       delBtn.title = "删除";
       delBtn.addEventListener("click", (e) => { e.stopPropagation(); deleteSession(s.id); });
       actions.append(renameBtn, delBtn);
 
-      li.append(text, actions);
-      li.addEventListener("click", () => openSession(s.id));
-      sessionList.appendChild(li);
+      item.append(text, actions);
+      item.addEventListener("click", () => openSession(s.id));
+      sessionList.appendChild(item);
     }
   }
 
@@ -99,14 +116,9 @@
     clearMessages();
     showEmptyHint();
     appbarTitle.textContent = "Coren";
-    renderSessionsActive(null);
+    for (const item of sessionList.querySelectorAll("mdui-list-item")) item.removeAttribute("active");
+    if (isMobile()) drawer.open = false;
     input.focus();
-  }
-
-  function renderSessionsActive(id) {
-    for (const li of sessionList.querySelectorAll(".session-item")) {
-      li.classList.toggle("active", li.dataset.id === id);
-    }
   }
 
   async function openSession(id) {
@@ -116,13 +128,15 @@
       if (!resp.ok) return;
       const data = await resp.json();
       currentSessionId = id;
-      renderSessionsActive(id);
       appbarTitle.textContent = data.title || "Coren";
+      for (const item of sessionList.querySelectorAll("mdui-list-item")) {
+        item.toggleAttribute("active", item.dataset.id === id);
+      }
       clearMessages();
       for (const m of data.messages || []) renderHistory(m);
       if ((data.messages || []).length === 0) showEmptyHint();
       messagesEl.scrollTop = messagesEl.scrollHeight;
-      if (window.matchMedia("(max-width: 720px)").matches) setDrawer(false);
+      if (isMobile()) drawer.open = false;
     } catch { /* ignore */ }
   }
 
@@ -144,8 +158,13 @@
   }
 
   async function renameSession(s) {
-    const title = prompt("重命名会话", s.title || "");
-    if (title === null || title.trim() === "") return;
+    const title = await mdui.prompt({
+      headline: "重命名会话",
+      defaultValue: s.title || "",
+      confirmText: "确定",
+      cancelText: "取消",
+    });
+    if (title === null || title === undefined || title.trim() === "") return;
     await fetch("/api/sessions/" + encodeURIComponent(s.id), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -156,8 +175,15 @@
   }
 
   async function deleteSession(id) {
-    if (!confirm("删除这个会话？一天内可从回收区恢复。")) return;
+    const ok = await mdui.confirm({
+      headline: "删除会话",
+      description: "删除后一天内可从回收区恢复。",
+      confirmText: "删除",
+      cancelText: "取消",
+    });
+    if (!ok) return;
     await fetch("/api/sessions/" + encodeURIComponent(id), { method: "DELETE" });
+    mdui.snackbar({ message: "已删除会话" });
     if (id === currentSessionId) await newSession();
     loadSessions();
   }
@@ -173,14 +199,6 @@
 
   // ---------- chat ----------
 
-  function autoGrow() {
-    input.style.height = "auto";
-    input.style.height = Math.min(input.scrollHeight, 180) + "px";
-  }
-
-  input.addEventListener("input", autoGrow);
-  input.addEventListener("keyup", autoGrow);
-
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -190,12 +208,10 @@
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const text = input.value.trim();
+    const text = (input.value || "").trim();
     if (!text || streaming) return;
 
     input.value = "";
-    input.style.height = "auto";
-    // Drop the empty hint on the first real message.
     const hint = messagesEl.querySelector(".empty-hint");
     if (hint) hint.remove();
     addMessage("user", text);
@@ -229,9 +245,14 @@
         for (const part of parts) {
           const line = part.split("\n").find((l) => l.startsWith("data:"));
           if (!line) continue;
-          const ev = JSON.parse(line.slice(5).trim());
-          const ui = { tools, getAssistant: () => assistantEl, setAssistant: (el) => { assistantEl = el; }, getReasoning: () => reasoningEl, setReasoning: (el) => { reasoningEl = el; } };
-          handleEvent(ev, ui);
+          const ui = {
+            tools,
+            getAssistant: () => assistantEl,
+            setAssistant: (el) => { assistantEl = el; },
+            getReasoning: () => reasoningEl,
+            setReasoning: (el) => { reasoningEl = el; },
+          };
+          handleEvent(JSON.parse(line.slice(5).trim()), ui);
         }
       }
     } catch (err) {
@@ -249,20 +270,14 @@
     switch (ev.type) {
       case "text": {
         let el = ui.getAssistant();
-        if (!el) {
-          el = addMessage("assistant", "");
-          ui.setAssistant(el);
-        }
+        if (!el) { el = addMessage("assistant", ""); ui.setAssistant(el); }
         el.textContent += ev.delta;
         messagesEl.scrollTop = messagesEl.scrollHeight;
         break;
       }
       case "reasoning": {
         let el = ui.getReasoning();
-        if (!el) {
-          el = addMessage("reasoning", "");
-          ui.setReasoning(el);
-        }
+        if (!el) { el = addMessage("reasoning", ""); ui.setReasoning(el); }
         el.textContent += ev.delta;
         messagesEl.scrollTop = messagesEl.scrollHeight;
         break;
@@ -321,40 +336,17 @@
 
   // ---------- layout ----------
 
-  menuToggle.addEventListener("click", () => {
-    setDrawer(drawer.classList.contains("collapsed"));
-  });
-  scrim.addEventListener("click", () => setDrawer(false));
+  menuToggle.addEventListener("click", () => { drawer.open = !drawer.open; });
   newSessionBtn.addEventListener("click", newSession);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !drawer.classList.contains("collapsed")) setDrawer(false);
+  window.addEventListener("resize", () => {
+    applyDrawerMode();
+    drawer.open = !isMobile();
   });
-
-  // setDrawer opens/closes the drawer; on mobile it toggles the scrim too.
-  // The collapsed state is remembered across reloads.
-  function setDrawer(open) {
-    const mobile = window.matchMedia("(max-width: 720px)").matches;
-    if (open) {
-      drawer.classList.remove("collapsed");
-      if (mobile) scrim.classList.remove("hidden");
-    } else {
-      drawer.classList.add("collapsed");
-      scrim.classList.add("hidden");
-    }
-    try { localStorage.setItem("coren_drawer_collapsed", open ? "0" : "1"); } catch {}
-  }
 
   // ---------- boot ----------
 
-  // Restore the remembered drawer state (default: open on desktop, closed on mobile).
-  try {
-    const saved = localStorage.getItem("coren_drawer_collapsed");
-    const mobile = window.matchMedia("(max-width: 720px)").matches;
-    if (saved === "1" || (saved === null && mobile)) {
-      drawer.classList.add("collapsed");
-    }
-  } catch { /* ignore */ }
-
+  applyDrawerMode();
+  drawer.open = !isMobile();
   loadSessions();
   newSession();
   checkWebUIUpdate();
