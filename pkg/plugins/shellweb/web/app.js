@@ -40,19 +40,199 @@
   function shortHash(h) { return h ? h.slice(0, 12) : "未知"; }
   function label(version, hash) { return version ? version : shortHash(hash); }
 
-  function addMessage(role, text) {
-    const el = document.createElement("div");
-    el.className = "msg " + role;
-    el.textContent = text;
-    messagesEl.appendChild(el);
+  // ---------- message model ----------
+  //
+  // Rendering is driven by an ordered array of items rather than appending to
+  // the DOM as events arrive. This keeps tool calls in the order they happened
+  // and lets consecutive collapsible items (reasoning + tools) render as one
+  // visually connected group while each still expands on its own.
+  //
+  // Item shapes:
+  //   { kind:"user",      text }
+  //   { kind:"assistant", text }
+  //   { kind:"reasoning", text }
+  //   { kind:"tool", id, name, args, output, error, done }
+  //   { kind:"error",     text }
+  let items = [];
+
+  // trackId is the tool-call id used to match a result to its call.
+  function findTool(id) {
+    return items.find((it) => it.kind === "tool" && it.id === id);
+  }
+
+  // lastOfKind returns the index of the last item of a kind, or -1.
+  function lastIndexOfKind(kind) {
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i].kind === kind) return i;
+    }
+    return -1;
+  }
+
+  function isCollapsible(it) {
+    return it.kind === "reasoning" || it.kind === "tool";
+  }
+
+  // pushUser adds a local user message.
+  function pushUser(text) {
+    items.push({ kind: "user", text });
+    renderMessages();
+  }
+
+  // pushAssistantDelta appends text to the trailing assistant item, creating a
+  // new one when the previous item is not assistant (e.g. a tool just ran).
+  function pushAssistantDelta(delta) {
+    const last = items[items.length - 1];
+    if (last && last.kind === "assistant") {
+      last.text += delta;
+    } else {
+      items.push({ kind: "assistant", text: delta });
+    }
+    renderMessages();
+  }
+
+  // pushReasoningDelta appends to the trailing reasoning item, or starts one.
+  function pushReasoningDelta(delta) {
+    const last = items[items.length - 1];
+    if (last && last.kind === "reasoning") {
+      last.text += delta;
+    } else {
+      items.push({ kind: "reasoning", text: delta });
+    }
+    renderMessages();
+  }
+
+  function pushToolCall(id, name, args) {
+    items.push({ kind: "tool", id, name, args, output: "", error: "", done: false });
+    renderMessages();
+  }
+
+  function completeTool(id, name, output, error) {
+    let tool = findTool(id);
+    if (!tool) {
+      // Some events omit a matching call id; fall back to the last unfinished
+      // tool with the same name.
+      for (let i = items.length - 1; i >= 0; i--) {
+        if (items[i].kind === "tool" && !items[i].done && items[i].name === name) {
+          tool = items[i];
+          break;
+        }
+      }
+    }
+    if (tool) {
+      tool.output = output || "";
+      tool.error = error || "";
+      tool.done = true;
+      renderMessages();
+    }
+  }
+
+  function pushError(text) {
+    items.push({ kind: "error", text });
+    renderMessages();
+  }
+
+  function clearMessages() {
+    items = [];
+    messagesEl.innerHTML = "";
+  }
+
+  // renderMessages rebuilds the message DOM from items, grouping consecutive
+  // collapsible items into a single connected block.
+  function renderMessages() {
+    messagesEl.innerHTML = "";
+    let i = 0;
+    while (i < items.length) {
+      const it = items[i];
+      if (isCollapsible(it)) {
+        // Collect a run of consecutive collapsible items into one group.
+        const group = document.createElement("div");
+        group.className = "collapse-group";
+        let first;
+        let last;
+        while (i < items.length && isCollapsible(items[i])) {
+          const node = collapsibleNode(items[i]);
+          group.appendChild(node);
+          if (!first) first = node;
+          last = node;
+          i++;
+        }
+        first.classList.add("group-first");
+        last.classList.add("group-last");
+        messagesEl.appendChild(group);
+      } else {
+        messagesEl.appendChild(messageNode(it));
+        i++;
+      }
+    }
     messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  // messageNode builds a non-collapsible message bubble.
+  function messageNode(it) {
+    const el = document.createElement("div");
+    if (it.kind === "error") {
+      el.className = "msg error";
+      el.textContent = it.text;
+      return el;
+    }
+    el.className = "msg " + it.kind;
+    el.textContent = it.text;
     return el;
   }
 
-  function clearMessages() { messagesEl.innerHTML = ""; }
+  // collapsibleNode builds one collapsible block. Its expanded state is kept in
+  // the item so re-renders preserve what the user opened.
+  function collapsibleNode(it) {
+    const wrap = document.createElement("div");
+    wrap.className = "collapsible " + it.kind;
+
+    const header = document.createElement("button");
+    header.type = "button";
+    header.className = "collapsible-header";
+    const chevron = document.createElement("span");
+    chevron.className = "material-icons collapsible-chevron";
+    chevron.textContent = "expand_more";
+    const title = document.createElement("span");
+    title.className = "collapsible-title";
+    title.textContent = it.kind === "reasoning"
+      ? "思考过程"
+      : toolLabel(it);
+    header.append(chevron, title);
+
+    const body = document.createElement("div");
+    body.className = "collapsible-body";
+    body.textContent = it.kind === "reasoning" ? it.text : toolBody(it);
+    body.hidden = !it.open;
+
+    chevron.style.transform = it.open ? "rotate(180deg)" : "";
+    header.addEventListener("click", () => {
+      it.open = !it.open;
+      body.hidden = !it.open;
+      chevron.style.transform = it.open ? "rotate(180deg)" : "";
+    });
+
+    wrap.append(header, body);
+    return wrap;
+  }
+
+  // toolLabel describes a tool block's header.
+  function toolLabel(it) {
+    if (it.error) return "工具出错 " + it.name;
+    if (it.done) return "工具结果 " + it.name;
+    return "调用工具 " + it.name;
+  }
+
+  // toolBody renders the call arguments and, once finished, the output.
+  function toolBody(it) {
+    let text = "▶ " + it.name + "(" + (it.args || "") + ")";
+    if (it.done) {
+      text += "\n◀ " + (it.error ? "error: " + it.error : it.output);
+    }
+    return text;
+  }
 
   function showEmptyHint() {
-    if (messagesEl.children.length === 0) {
+    if (items.length === 0) {
       const el = document.createElement("div");
       el.className = "empty-hint";
       el.textContent = "开始一段新对话";
@@ -133,27 +313,40 @@
         item.toggleAttribute("active", item.dataset.id === id);
       }
       clearMessages();
-      for (const m of data.messages || []) renderHistory(m);
-      if ((data.messages || []).length === 0) showEmptyHint();
+      buildHistory(data.messages || []);
+      renderMessages();
+      showEmptyHint();
       messagesEl.scrollTop = messagesEl.scrollHeight;
       if (isMobile()) drawer.open = false;
     } catch { /* ignore */ }
   }
 
-  function renderHistory(m) {
-    switch (m.role) {
-      case "user":
-        addMessage("user", m.text);
-        break;
-      case "assistant":
-        if (m.text) addMessage("assistant", m.text);
-        break;
-      case "tool_call":
-        addMessage("tool", "▶ " + m.tool_name + "(" + (m.text || "") + ")");
-        break;
-      case "tool_result":
-        addMessage("tool", "◀ " + (m.error ? "error: " + m.error : m.text));
-        break;
+  // buildHistory converts stored session messages into render items.
+  function buildHistory(messages) {
+    items = [];
+    for (const m of messages || []) {
+      switch (m.role) {
+        case "user":
+          items.push({ kind: "user", text: m.text });
+          break;
+        case "assistant":
+          if (m.text && m.text.trim()) items.push({ kind: "assistant", text: m.text.trim() });
+          break;
+        case "tool_call":
+          items.push({ kind: "tool", id: m.tool_call_id, name: m.tool_name, args: m.text || "", output: "", error: "", done: false });
+          break;
+        case "tool_result": {
+          const tool = findTool(m.tool_call_id);
+          if (tool) {
+            tool.output = m.text || "";
+            tool.error = m.error || "";
+            tool.done = true;
+          } else {
+            items.push({ kind: "tool", id: m.tool_call_id, name: m.tool_name, args: "", output: m.text || "", error: m.error || "", done: true });
+          }
+          break;
+        }
+      }
     }
   }
 
@@ -200,24 +393,26 @@
   // ---------- chat ----------
 
   input.addEventListener("keydown", (e) => {
+    // MDUI text-field also triggers form submit on plain Enter; this guards the
+    // Shift+Enter case so it inserts a newline instead of submitting.
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      form.requestSubmit();
+      submitTurn();
     }
   });
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
+  // The send button is a plain icon button (not a form submit), so wire it up.
+  send.addEventListener("click", submitTurn);
+
+  async function submitTurn() {
     const text = (input.value || "").trim();
     if (!text || streaming) return;
 
     input.value = "";
     const hint = messagesEl.querySelector(".empty-hint");
     if (hint) hint.remove();
-    addMessage("user", text);
-    let assistantEl = null;
-    let reasoningEl = null;
-    const tools = new Map();
+    pushUser(text);
+    let assistant = null; // item index of the current assistant bubble
 
     streaming = true;
     send.disabled = true;
@@ -245,60 +440,46 @@
         for (const part of parts) {
           const line = part.split("\n").find((l) => l.startsWith("data:"));
           if (!line) continue;
-          const ui = {
-            tools,
-            getAssistant: () => assistantEl,
-            setAssistant: (el) => { assistantEl = el; },
-            getReasoning: () => reasoningEl,
-            setReasoning: (el) => { reasoningEl = el; },
-          };
-          handleEvent(JSON.parse(line.slice(5).trim()), ui);
+          handleEvent(JSON.parse(line.slice(5).trim()));
         }
       }
     } catch (err) {
-      addMessage("error", "请求失败: " + err.message);
+      pushError("请求失败: " + err.message);
     } finally {
+      // Trim leading blank lines the model often emits before its reply.
+      const last = items[items.length - 1];
+      if (last && last.kind === "assistant") {
+        if (last.text.trim()) last.text = last.text.trim();
+        else items.pop();
+        renderMessages();
+      }
       streaming = false;
       send.disabled = false;
       status.textContent = "就绪";
       input.focus();
       loadSessions();
     }
-  });
+  }
 
-  function handleEvent(ev, ui) {
+  function handleEvent(ev) {
     switch (ev.type) {
-      case "text": {
-        let el = ui.getAssistant();
-        if (!el) { el = addMessage("assistant", ""); ui.setAssistant(el); }
-        el.textContent += ev.delta;
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+      case "text":
+        pushAssistantDelta(ev.delta);
         break;
-      }
-      case "reasoning": {
-        let el = ui.getReasoning();
-        if (!el) { el = addMessage("reasoning", ""); ui.setReasoning(el); }
-        el.textContent += ev.delta;
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+      case "reasoning":
+        pushReasoningDelta(ev.delta);
         break;
-      }
-      case "tool_call": {
-        const el = document.createElement("div");
-        el.className = "msg tool";
-        el.textContent = "▶ " + ev.name + "(" + ev.arguments + ")";
-        messagesEl.appendChild(el);
-        ui.tools.set(ev.name, el);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+      case "tool_call":
+        pushToolCall(ev.id || ev.name, ev.name, ev.arguments);
         break;
-      }
-      case "tool_result": {
-        const el = ui.tools.get(ev.name);
-        if (el) el.textContent += "\n◀ " + (ev.error ? "error: " + ev.error : ev.output);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
+      case "tool_result":
+        completeTool(ev.id || ev.name, ev.name, ev.output, ev.error);
         break;
-      }
+      case "rejected":
+        pushError("已拒绝：" + (ev.reason || ""));
+        break;
       case "error":
-        addMessage("error", ev.error);
+        pushError(ev.error);
         break;
     }
   }

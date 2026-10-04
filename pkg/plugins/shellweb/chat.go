@@ -52,12 +52,14 @@ func (s *Shell) handleChat(w http.ResponseWriter, r *http.Request) {
 		case ev.ToolCallStart != nil:
 			send(map[string]any{
 				"type":      "tool_call",
+				"id":        ev.ToolCallStart.ID,
 				"name":      ev.ToolCallStart.Name,
 				"arguments": ev.ToolCallStart.Arguments,
 			})
 		case ev.ToolCallResult != nil:
 			payload := map[string]any{
 				"type":   "tool_result",
+				"id":     ev.ToolCallResult.ID,
 				"name":   ev.ToolCallResult.Name,
 				"output": ev.ToolCallResult.Output,
 			}
