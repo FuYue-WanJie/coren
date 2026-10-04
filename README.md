@@ -114,14 +114,21 @@ profile 决定启动哪些插件，是配置而非代码：
 
 - `GET /api/health` — 健康检查
 - `POST /api/chat` — 流式对话（SSE）
+- `GET /api/sessions` — 会话列表（摘要：id / title / turns / message_count / updated_at）
+- `POST /api/sessions` — 新建会话，返回 id（新会话延迟创建：发出第一条消息前才建）
+- `GET /api/sessions/{id}` — 该会话的可渲染历史
+- `PATCH /api/sessions/{id}` — 重命名（追加 `session/meta` 事件）
+- `DELETE /api/sessions/{id}` — 软删除（改名到回收区，保留 24 小时）
+- `GET /api/webui/status` — 提取的 WebUI 是否为旧版
+- `POST /api/webui/update` — 用内置版本覆盖磁盘 WebUI（先备份）
 
-请求体：
+`POST /api/chat` 请求体：
 
 ```json
 { "session_id": "optional", "message": "你好" }
 ```
 
-响应为 `text/event-stream`，事件类型：`text`、`tool_call`、`tool_result`、`done`、`error`。
+响应为 `text/event-stream`，事件类型：`text`、`reasoning`、`tool_call`、`tool_result`、`rejected`、`done`、`error`。
 
 ## 目录结构
 
@@ -181,6 +188,9 @@ Coren/
 一切皆插件：内核没有特权核心，能力通过服务注册到 `coren.Context`，
 扩展方式是挂载一个新插件，注册项在卸载时自动撤销。
 
+> 注意：这是**架构层面**的插件化。当前插件仍在编译期装配，新增 Go 插件需要重编
+> 主程序。详见下方「一切皆插件的现状与边界」。
+
 ```go
 k := coren.NewKernel(ctx)
 k.Boot(
@@ -205,13 +215,47 @@ ctx.OnWaterfall(coren.EventToolsPreExecute, func(_ context.Context, payload any,
 
 详见 `docs/architecture.md` 与 `docs/roadmap.md`。
 
+## 「一切皆插件」的现状与边界
+
+「一切皆插件」是设计目标，当前实现只完成了**架构上**的一半：内核没有特权核心，
+所有能力（模型、工具、会话、循环、外壳）都以插件形式注册到 `coren.Context`，
+拦截行为靠监听事件完成，注册项在卸载时自动撤销。**代码组织层面**这一点是成立的。
+
+尚未实现的是**运行时的插件加载**。诚实地说：
+
+- **加一个新的 Go 插件，需要重新编译整个二进制。** 插件的工厂函数在
+  `internal/app` 里以 `switch` 硬编码注册（`buildPlugin`），编译器在构建期把插件
+  符号静态链接进 `coren`。当前没有「只编译插件、不动主程序」的路径。
+- **没有进程内动态加载。** Go 的 `plugin` 包（`.so`）只支持 Linux/macOS，
+  且要求主程序与插件的 Go 版本、依赖、类型完全一致，实际很少使用；Coren 未采用。
+- **没有热插拔 / 热重载。** 插件集在启动时确定，运行中无法增删。
+- **profile 是编译期组合。** 换一套插件组合意味着重新构建（见上方 Profile 表）。
+
+**哪些扩展点已经是运行时的**（改配置或放文件即可，无需重编）：
+
+| 扩展点 | 方式 | 是否需重编 |
+|---|---|---|
+| Skills | 目录内 `SKILL.md` | 否 |
+| MCP server | `coren.json` 的 `mcp` | 否 |
+| 记忆 / 待办 | `MEMORY.md` / `TODO.md` | 否 |
+| 项目规则 | `AGENTS.md` / `CLAUDE.md` | 否 |
+| 提示词 / 模型能力 | 配置项 | 否 |
+| 外部进程插件 | 见分支 `radical` 的 `plugin-host` | 否（该特性尚未并入主线） |
+
+**这意味着**：日常改行为、加知识、接 MCP、调模型，不需要重编；
+写一个**全新的 Go 工具或改动 agent 内部行为**，目前必须重编主程序。
+
+若要做真正的运行时插件，Go 生态里可行的方向是**进程隔离**（子进程 + 协议，
+参考 `radical` 分支的 `plugin-host` 实验：NDJSON + JSON-RPC），代价是每次调用有一次
+进程间往返，且能力面受协议限制。这是一个明确但未落地的方向。
+
 ## 扩展
 
-实现 `tool.Tool` 并注册即可新增工具：
+实现 `tools.Tool` 并注册即可新增工具：
 
 ```go
-registry := tool.NewRegistry()
+registry := tools.NewRegistry()
 registry.Register(myTool{}) // Spec() + Run()
 ```
 
-实现 `provider.Provider` 可接入新的模型后端。
+实现 `llm.Adapter` 可接入新的模型后端。注意：以上都需要把插件编译进主程序。
