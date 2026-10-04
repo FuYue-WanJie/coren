@@ -407,9 +407,10 @@ func (a *Agent) streamOnce(
 		CacheRetention: a.CacheRetention,
 		Reasoning:      a.effectiveReasoning(),
 	}
-	// Only advertise tools when the model is known to support them. An unset
-	// capability (zero Info) is treated as "assume supported" for safety.
-	if a.ModelInfo.ID == "" || a.ModelInfo.ToolCall {
+	// Only advertise tools when the model supports them. When no capability
+	// source resolved (Source empty), support is unknown, so we assume tools are
+	// available rather than silently dropping them.
+	if a.ModelInfo.Source == "" || a.ModelInfo.ToolCall {
 		req.Tools = toolService.Specs()
 	}
 	// Respect the model's output limit when the caller did not set one.

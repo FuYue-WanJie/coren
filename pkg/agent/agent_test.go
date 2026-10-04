@@ -14,8 +14,9 @@ import (
 
 // scriptedAdapter replays canned turns, one per Stream call.
 type scriptedAdapter struct {
-	turns []turn
-	calls int
+	turns   []turn
+	calls   int
+	lastReq llm.Request
 }
 
 type turn struct {
@@ -25,7 +26,8 @@ type turn struct {
 
 func (p *scriptedAdapter) Name() string { return "scripted" }
 
-func (p *scriptedAdapter) Stream(context.Context, llm.Request) (<-chan llm.Chunk, error) {
+func (p *scriptedAdapter) Stream(_ context.Context, req llm.Request) (<-chan llm.Chunk, error) {
+	p.lastReq = req
 	if p.calls >= len(p.turns) {
 		return nil, errors.New("no more scripted turns")
 	}
@@ -408,5 +410,41 @@ func TestEffectiveReasoningUnknownModelStaysAuto(t *testing.T) {
 	ag := &Agent{ModelInfo: modelinfo.Info{}}
 	if got := ag.effectiveReasoning(); got != llm.ReasoningAuto {
 		t.Errorf("unknown model = %q, want auto", got)
+	}
+}
+
+func TestToolsSentWhenCapabilityUnknown(t *testing.T) {
+	// No catalog and failed probe leave Source empty and ToolCall false; tools
+	// must still be advertised rather than silently dropped.
+	adapter := &scriptedAdapter{turns: []turn{
+		{chunks: []llm.Chunk{{TextDelta: "hi"}, {Done: true}}},
+	}}
+	k := newTestKernel(t, adapter)
+	defer k.Shutdown()
+
+	ag := &Agent{Context: k.Context(), Model: "test", ModelInfo: modelinfo.Info{ID: "test"}}
+	sess := session.NewStore().Get("t")
+	for range ag.Send(context.Background(), sess, "hello") {
+	}
+	if len(adapter.lastReq.Tools) == 0 {
+		t.Fatal("tools should be sent when capability is unknown")
+	}
+}
+
+func TestToolsOmittedWhenKnownUnsupported(t *testing.T) {
+	adapter := &scriptedAdapter{turns: []turn{
+		{chunks: []llm.Chunk{{TextDelta: "hi"}, {Done: true}}},
+	}}
+	k := newTestKernel(t, adapter)
+	defer k.Shutdown()
+
+	// Source set (catalog/endpoint resolved) and ToolCall false -> omit tools.
+	ag := &Agent{Context: k.Context(), Model: "test",
+		ModelInfo: modelinfo.Info{ID: "test", Source: "catalog:x", ToolCall: false}}
+	sess := session.NewStore().Get("t")
+	for range ag.Send(context.Background(), sess, "hello") {
+	}
+	if len(adapter.lastReq.Tools) != 0 {
+		t.Fatalf("tools should be omitted when known unsupported, got %d", len(adapter.lastReq.Tools))
 	}
 }

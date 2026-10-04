@@ -2,31 +2,59 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Coren</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:ital,opsz,wght@0,17..18,400..700;1,17..18,400..700&display=swap" />
+  <link rel="stylesheet" href="vendor/material-icons.css" />
+  <link rel="stylesheet" href="vendor/theme.css" />
+  <link rel="stylesheet" href="vendor/micl.css" />
   <link rel="stylesheet" href="app.css" />
 </head>
-<body>
-  <header>
-    <h1>Coren</h1>
-    <span id="status">就绪</span>
-  </header>
+<body class="light">
+  <div class="app-layout">
+    <div id="scrim" class="scrim hidden"></div>
 
-  <div id="webui-notice" class="notice hidden">
-    <span id="webui-notice-text"></span>
-    <span class="notice-actions">
-      <button id="webui-update" type="button">更新</button>
-      <button id="webui-dismiss" type="button" class="ghost">保留我的版本</button>
-    </span>
+    <!-- Session drawer -->
+    <aside id="drawer" class="app-drawer">
+      <div class="drawer-head">
+        <span class="drawer-title">会话</span>
+        <button id="new-session" class="icon-btn" title="新建会话" aria-label="新建会话">
+          <span class="material-symbols-outlined">add</span>
+        </button>
+      </div>
+      <ul id="session-list" class="session-list"></ul>
+    </aside>
+
+    <div class="app-main">
+      <header class="appbar">
+        <button id="menu-toggle" class="icon-btn" title="会话列表" aria-label="会话列表">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+        <h1 id="appbar-title" class="appbar-title">Coren</h1>
+        <span id="status" class="appbar-status">就绪</span>
+      </header>
+
+      <div id="webui-notice" class="notice hidden">
+        <span id="webui-notice-text"></span>
+        <span class="notice-actions">
+          <button id="webui-update" class="btn">更新</button>
+          <button id="webui-dismiss" class="btn ghost">保留</button>
+        </span>
+      </div>
+
+      <main id="messages" class="messages" aria-live="polite"></main>
+
+      <form id="composer" class="composer">
+        <textarea id="input" class="composer-input" rows="1"
+          placeholder="输入消息，Enter 发送"></textarea>
+        <button type="submit" id="send" class="send-btn" aria-label="发送">
+          <span class="material-symbols-outlined">send</span>
+        </button>
+      </form>
+    </div>
   </div>
 
-  <main id="messages" aria-live="polite"></main>
-
-  <form id="composer">
-    <textarea id="input" rows="1" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
-    <button type="submit" id="send">发送</button>
-  </form>
-
+  <script src="vendor/micl.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
